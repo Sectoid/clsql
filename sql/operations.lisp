@@ -123,6 +123,11 @@
   (make-instance 'sql-relational-exp
                  :operator 'like :sub-expressions rest))
 
+(defsql sql-~* (:symbol "~*") (&rest rest)
+	"This is the postgres regex match operator"
+  (make-instance 'sql-relational-exp
+                 :operator '~* :sub-expressions rest))
+
 (defsql sql-uplike (:symbol "uplike") (&rest rest)
   (make-instance 'sql-upcase-like
                  :sub-expressions rest))
