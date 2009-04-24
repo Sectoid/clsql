@@ -158,6 +158,7 @@
                      :name 'substr :args rest)
       (error 'sql-user-error :message "SUBSTR must have 3 arguments.")))
 
+
 (defsql sql-substring (:symbol "substring") (&rest rest)
   (if (= (length rest) 3)
       (make-instance 'sql-function-exp
@@ -259,3 +260,10 @@
       (make-instance 'sql-function-exp
                      :name 'upper :args rest)
     (error 'sql-user-error :message "UPPER must have 1 argument.")))
+
+(defsql sql-date_part (:symbol "date_part") (&rest rest)
+	"the date_part function for postgres"
+  (if (= (length rest) 2)
+      (make-instance 'sql-function-exp
+                     :name 'date_part :args rest)
+      (error 'sql-user-error :message "date_part must have 2 arguments.")))
