@@ -587,6 +587,9 @@ uninclusive, and the args from that keyword to the end."
     (write-string "SELECT " *sql-stream*)
     (when all
       (write-string "ALL " *sql-stream*))
+    (when (and limit (eq :odbc (database-type database)))
+      (write-string " TOP " *sql-stream*)
+      (output-sql limit database))
     (when (and distinct (not all))
       (write-string "DISTINCT " *sql-stream*)
       (unless (eql t distinct)
@@ -656,7 +659,7 @@ uninclusive, and the args from that keyword to the end."
               (when (cdr order)
                 (write-char #\, *sql-stream*))))
           (output-sql order-by database)))
-    (when limit
+    (when (and limit (not (eq :odbc (database-type database))))
       (write-string " LIMIT " *sql-stream*)
       (output-sql limit database))
     (when offset
