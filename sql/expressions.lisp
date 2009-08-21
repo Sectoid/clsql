@@ -110,6 +110,7 @@
     `(make-instance 'sql-ident :name ',name)))
 
 (defmethod output-sql ((expr sql-ident) database)
+  
   (with-slots (name) expr
     (write-string
      (etypecase name
@@ -169,10 +170,10 @@
               (when qualifier
                 (typecase qualifier
                   (string (format nil "~s" qualifier))
-                  (t (sql-escape qualifier))))
+                  (t (format nil "~s" (sql-escape qualifier)))))
               (typecase name
                 (string (format nil "~s" (sql-escape name)))
-                (t (sql-escape name)))))
+                (t (format nil "~s" (sql-escape name))))))
     t))
 
 (defmethod output-sql-hash-key ((expr sql-ident-attribute) database)
