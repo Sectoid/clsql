@@ -82,15 +82,6 @@
         ((stringp arg)
          (sql-escape arg))))
 
-(defun column-name-from-arg (arg)
-  (cond ((symbolp arg)
-         arg)
-        ((typep arg 'sql-ident)
-         (slot-value arg 'name))
-        ((stringp arg)
-         (intern (symbol-name-default-case arg)))))
-
-
 (defun remove-keyword-arg (arglist akey)
   (let ((mylist arglist)
         (newlist ()))
@@ -466,12 +457,9 @@ implementations."
          ;; the column slot is filled in with the slot-name,  but transformed
          ;; to be sql safe, - to _ and such.
          (setf (slot-value esd 'column)
-           (column-name-from-arg
-            (if (slot-boundp dsd 'column)
-                (delistify-dsd (view-class-slot-column dsd))
-              (column-name-from-arg
-               (sql-escape (slot-definition-name dsd))))))
-
+	       (if (slot-boundp dsd 'column)
+		   (delistify-dsd (view-class-slot-column dsd))
+		   (slot-definition-name dsd)))
          (setf (slot-value esd 'db-type)
            (when (slot-boundp dsd 'db-type)
              (delistify-dsd
@@ -534,8 +522,7 @@ implementations."
                              type-predicate)))
 
          (setf (slot-value esd 'column)
-           (column-name-from-arg
-            (sql-escape (slot-definition-name dsd))))
+	       (slot-definition-name dsd))
 
          (setf (slot-value esd 'db-info) nil)
          (setf (slot-value esd 'db-kind) :virtual)
