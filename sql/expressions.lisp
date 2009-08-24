@@ -151,15 +151,29 @@
 ;;; KMR: The TYPE field is used by CommonSQL for type conversion -- it
 ;;; should not be output in SQL statements
   (let ((*print-pretty* nil))
-    (with-slots (qualifier name type) expr
-      (format *sql-stream* "~@[~a.~]~a"
-	      (typecase qualifier
-		(string (format nil "~s" qualifier))
-		(symbol (safety-first (sql-escape qualifier))))
-	      (typecase name
-		(string (format nil "~s" name))
-		(symbol (safety-first (sql-escape name)))))
-      t)))
+    (labels ((quoted-string-p (inp)
+	       (and (char-equal #\" (elt inp 0))
+		    (char-equal #\" (elt inp (1- (length inp))))))
+	     (safety-first (inp)
+	       "do our best not to output sql that we can guarantee is invalid. 
+              if the ident has a space or quote in it, instead output a quoted
+	      identifier containing those chars"
+	       (when (and (not (quoted-string-p inp))
+			  (find-if
+			   (lambda (x) (member x '(#\space #\' #\")
+					       :test #'char-equal)) inp))
+		 (setf inp (format nil "~s" (substitute "\\\"" "\"" inp :test #'string-equal))))
+	       inp))
+      (with-slots (qualifier name type) expr
+	(format *sql-stream* "~@[~a.~]~a"
+		(typecase qualifier
+		  (null nil)		; nil is a symbol
+		  (string (format nil "~s" qualifier))
+		  (symbol (safety-first (sql-escape qualifier))))
+		(typecase name ;; could never get this to be nil without getting another error first
+		  (string (format nil "~s" name))
+		  (symbol (safety-first (sql-escape name)))))
+	t))))
 
 (defmethod output-sql-hash-key ((expr sql-ident-attribute) database)
   (with-slots (qualifier name type)
