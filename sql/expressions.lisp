@@ -148,33 +148,18 @@
       :type ',type)))
 
 (defmethod output-sql ((expr sql-ident-attribute) database)
-  (with-slots (qualifier name type) expr
-    (if (and (not qualifier) (not type))
-        (etypecase name
-          (string
-           (write-string name *sql-stream*))
-          (symbol
-           (write-string
-            (sql-escape (symbol-name name)) *sql-stream*)))
-
-        ;;; KMR: The TYPE field is used by CommonSQL for type conversion -- it
-      ;;; should not be output in SQL statements
-      #+ignore
-      (format *sql-stream* "~@[~A.~]~A~@[ ~A~]"
-              (when qualifier
-                (sql-escape qualifier))
-              (sql-escape name)
-              (when type
-                (symbol-name type)))
-      (format *sql-stream* "~@[~A.~]~A"
-              (when qualifier
-                (typecase qualifier
-                  (string (format nil "~s" qualifier))
-                  (t (format nil "~s" (sql-escape qualifier)))))
-              (typecase name
-                (string (format nil "~s" (sql-escape name)))
-                (t (format nil "~s" (sql-escape name))))))
-    t))
+;;; KMR: The TYPE field is used by CommonSQL for type conversion -- it
+;;; should not be output in SQL statements
+  (let ((*print-pretty* nil))
+    (with-slots (qualifier name type) expr
+      (format *sql-stream* "~@[~a.~]~a"
+	      (typecase qualifier
+		(string (format nil "~s" qualifier))
+		(symbol (safety-first (sql-escape qualifier))))
+	      (typecase name
+		(string (format nil "~s" name))
+		(symbol (safety-first (sql-escape name)))))
+      t)))
 
 (defmethod output-sql-hash-key ((expr sql-ident-attribute) database)
   (with-slots (qualifier name type)

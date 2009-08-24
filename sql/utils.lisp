@@ -52,10 +52,9 @@
 
 (defun sql-escape (identifier)
   "Change hyphens to underscores, ensure string"
-  (let ((unescaped (etypecase identifier
-                     (symbol (symbol-name identifier))
-                     (string identifier))))
-    (substitute #\_ #\- unescaped)))
+  (etypecase identifier
+    (symbol (substitute #\_ #\- (symbol-name identifier)))
+    (string identifier)))
 
 (defmacro without-interrupts (&body body)
   #+allegro `(mp:without-scheduling ,@body)
