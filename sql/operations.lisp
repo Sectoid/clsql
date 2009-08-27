@@ -249,6 +249,16 @@
   (make-instance 'sql-function-exp
                  :name 'coalesce :args rest))
 
+(defsql sql-left (:symbol "left") (&rest rest)
+	"mssqlserver uses this to get the left n chars of a string"
+  (make-instance 'sql-function-exp
+                 :name 'left :args rest))
+
+(defsql sql-right (:symbol "right") (&rest rest)
+	"mssqlserver uses this to get the right n chars of a string"
+  (make-instance 'sql-function-exp
+                 :name 'right :args rest))
+
 (defsql sql-nvl (:symbol "nvl") (&rest rest)
   (if (= (length rest) 2)
       (make-instance 'sql-function-exp
