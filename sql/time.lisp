@@ -1206,17 +1206,21 @@ rules"
 timestring starts with P, read a duration; otherwise read an ISO 8601
 formatted date string."
   (declare (ignore junk-allowed))
-  (let ((string (subseq timestring start end)))
-    (if (char= (aref string 0) #\P)
-        (parse-iso-8601-duration string)
-      (parse-iso-8601-time string))))
+  (if (typep timestring '(or wall-time date))
+      timestring
+      (let ((string (subseq timestring start end)))
+	(if (char= (aref string 0) #\P)
+	    (parse-iso-8601-duration string)
+	    (parse-iso-8601-time string)))))
 
 (defun parse-datestring (datestring &key (start 0) end junk-allowed)
   "parse a ISO 8601 timestring and return the corresponding date.
 Will throw a hissy fit if the date string is a duration. Will ignore any precision beyond day (hour/min/sec/usec)."
-  (let ((parsed-value (parse-timestring datestring :start start :end end :junk-allowed junk-allowed)))
-    (ecase (type-of parsed-value)
-      (wall-time (%make-date :mjd (time-mjd parsed-value))))))
+  (if (typep datestring '(or wall-time date))
+      datestring
+      (let ((parsed-value (parse-timestring datestring :start start :end end :junk-allowed junk-allowed)))
+	(ecase (type-of parsed-value)
+	  (wall-time (%make-date :mjd (time-mjd parsed-value)))))))
 
 
 (defvar *iso-8601-duration-delimiters*
