@@ -22,9 +22,26 @@
 (defpackage :clsql-postgresql-socket3
     (:use #:common-lisp #:clsql-sys #:postgresql-socket3)
     (:export #:postgresql-socket3-database)
-    (:documentation "This is the CLSQL socket interface to PostgreSQL."))
+    (:documentation "This is the CLSQL socket interface (protocol version 3) to PostgreSQL."))
 
 (in-package #:clsql-postgresql-socket3)
+
+(defvar *sqlreader* (cl-postgres:copy-sql-readtable))
+(let ((dt-fn (lambda (useconds-since-2000)
+	       (let ((sec (truncate
+			   (/ useconds-since-2000
+			      1000000)))
+		     (usec (mod useconds-since-2000
+				1000000)))
+		 (clsql:make-time :year 2000 :second sec :usec usec)))))
+  (cl-postgres:set-sql-datetime-readers
+   :table *sqlreader*
+   :date (lambda (days-since-2000)
+	   (clsql:make-date :year 2000 :day (+ 1 days-since-2000)))
+   :timestamp dt-fn
+   :timestamp-with-timezone dt-fn))
+
+
 
 ;; interface foreign library loading routines
 
@@ -103,13 +120,14 @@
       "/" db "/" user)))
 
 (defmethod database-connect (connection-spec
-                             (database-type (eql :postgresql-socket)))
+                             (database-type (eql :postgresql-socket3)))
   (check-connection-spec connection-spec database-type
                          (host db user password &optional port options tty))
   (destructuring-bind (host db user password &optional
                             (port +postgresql-server-default-port+)
                             (options "") (tty ""))
       connection-spec
+    (declare (ignore options tty))
     (handler-case
         (handler-bind ((warning
                         (lambda (c)
@@ -117,13 +135,7 @@
                                 :format-control "~A"
                                 :format-arguments
                                 (list (princ-to-string c))))))
-          (cl-postgres:open-database
-	   :database db
-	   :user user
-	   :password password
-	   :host host
-	   :port port
-           ))
+          (cl-postgres:open-database db user password host port))
       (cl-postgres:database-error (c)
         ;; Connect failed
         (error 'sql-connection-error
@@ -145,16 +157,44 @@
 
 (defvar *include-field-names* nil)
 
-(cl-postgres:def-row-reader clsql-default-row-reader (fields)
-  (values (loop :while (next-row)
-		:collect (loop :for field :across fields
-			       :collect (next-field field)))
-	  (when *include-field-names*
-	    (loop :for field :across fields
-		  :collect (field-name field)))))
+
+;; THE FOLLOWING MACRO EXPANDS TO THE FUNCTION BELOW IT,
+;; BUT TO GET null CONVENTIONS CORRECT I NEEDED TO TWEAK THE EXPANSION
+;;
+;; (cl-postgres:def-row-reader clsql-default-row-reader (fields)
+;;   (values (loop :while (cl-postgres:next-row)
+;; 		:collect (loop :for field :across fields
+;; 			       :collect (cl-postgres:next-field field)))
+;; 	  (when *include-field-names*
+;; 	    (loop :for field :across fields
+;; 		  :collect (cl-postgres:field-name field)))))
+
+
+
+(defun clsql-default-row-reader (stream fields)
+  (declare (type stream stream)
+           (type (simple-array cl-postgres::field-description) fields))
+  (flet ((cl-postgres:next-row ()
+	   (cl-postgres::look-for-row stream))
+	 (cl-postgres:next-field (cl-postgres::field)
+	   (declare (type cl-postgres::field-description cl-postgres::field))
+	   (let ((cl-postgres::size (cl-postgres::read-int4 stream)))
+	     (declare (type (signed-byte 32) cl-postgres::size))
+	     (if (eq cl-postgres::size -1)
+		 nil
+		 (funcall (cl-postgres::field-interpreter cl-postgres::field)
+			  stream cl-postgres::size)))))
+    (values
+      (loop :while (cl-postgres:next-row)
+	    :collect (loop :for field :across fields
+			   :collect (cl-postgres:next-field field)))
+      (when *include-field-names*
+	(loop :for field :across fields
+	      :collect (cl-postgres:field-name field))))))
 
 (defmethod database-query ((expression string) (database postgresql-socket3-database) result-types field-names)
-  (let ((connection (database-connection database)))
+  (let ((connection (database-connection database))
+	(cl-postgres:*sql-readtable* *sqlreader*))
     (with-postgresql-handlers (database expression)
       (let ((*include-field-names* field-names))
 	(cl-postgres:exec-query connection expression #'clsql-default-row-reader))
@@ -164,7 +204,7 @@
     ((expression string) (database postgresql-socket3-database))
   (let ((connection (database-connection database)))
     (with-postgresql-handlers (database expression)
-      (exec-query connection expression))))
+      (cl-postgres:exec-query connection expression))))
 
 ;;;; Cursoring interface
 
@@ -178,16 +218,21 @@
 
 (cl-postgres:def-row-reader clsql-cursored-row-reader (fields)
   (setf *cursor*
-	(make-instance 'cursor :next-row #'next-row :fields fields :next-field #'next-field)))
+	(make-instance 'cursor
+		       :next-row #'cl-postgres:next-row
+		       :fields fields
+		       :next-field #'cl-postgres:next-field)))
 
 (defmethod database-query-result-set ((expression string)
                                       (database postgresql-socket3-database)
                                       &key full-set result-types)
+  (declare (ignore result-types))
   (declare (ignore full-set))
   (let ((connection (database-connection database))
 	*cursor*)
     (with-postgresql-handlers (database expression)
       (cl-postgres:exec-query connection expression 'clsql-cursored-row-reader)
+      (break "Built cursor")
       (values *cursor* (length (fields *cursor*))))))
 
 (defmethod database-dump-result-set (result-set
@@ -201,12 +246,12 @@
                                     list)
   (when (and (not (done result-set))
 	     (setf (done result-set) (funcall (next-row result-set))))
-    
     (let* ((data (loop :for field :across (fields result-set)
 		       :collect (funcall (next-field result-set) field))))
       ;; Maybe?
-      (setf (car list) (car data)
-	    (cdr list) (cdr data)))))
+      ;(setf list data)
+      (setf (car list) (car data) (cdr list) (cdr data))
+      )))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -214,6 +259,7 @@
 
 (defmethod database-create (connection-spec (type (eql :postgresql-socket3)))
   (destructuring-bind (host name user password &optional port options tty) connection-spec
+    (declare (ignore port options tty))
     (let ((database (database-connect (list host "postgres" user password)
                                       type)))
       (setf (slot-value database 'clsql-sys::state) :open)
@@ -222,7 +268,8 @@
         (database-disconnect database)))))
 
 (defmethod database-destroy (connection-spec (type (eql :postgresql-socket3)))
-  (destructuring-bind (host name user password &optional port optional tty) connection-spec
+  (destructuring-bind (host name user password &optional port options tty) connection-spec
+    (declare (ignore port options tty))
     (let ((database (database-connect (list host "postgres" user password)
                                       type)))
       (setf (slot-value database 'clsql-sys::state) :open)

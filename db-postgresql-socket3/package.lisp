@@ -22,5 +22,13 @@
 
 (defpackage #:postgresql-socket3
   (:use #:cl md5 #:cl-postgres)
-  (:export ))
+  (:export #:+postgresql-server-default-port+
+	   #:postgresql-condition
+	   #:postgresql-error
+	   #:postgresql-fatal-error
+	   #:postgresql-login-error
+	   #:postgresql-warning
+	   #:postgresql-notification
+	   #:postgresql-condition-message
+	   #:postgresql-condition-connection))
 

@@ -27,3 +27,38 @@
   "T if foreign library was able to be loaded successfully. Always true for
 socket interface"
   t)
+
+(defparameter +postgresql-server-default-port+ 5432
+  "Default port of PostgreSQL server.")
+
+;;;; Condition hierarchy
+
+(define-condition postgresql-condition (condition)
+  ((connection :initarg :connection :reader postgresql-condition-connection)
+   (message :initarg :message :reader postgresql-condition-message))
+  (:report
+   (lambda (c stream)
+     (format stream "~@<~A occurred on connection ~A. ~:@_Reason: ~A~:@>"
+             (type-of c)
+             (postgresql-condition-connection c)
+             (postgresql-condition-message c)))))
+
+(define-condition postgresql-error (error postgresql-condition)
+  ())
+
+(define-condition postgresql-fatal-error (postgresql-error)
+  ())
+
+(define-condition postgresql-login-error (postgresql-fatal-error)
+  ())
+
+(define-condition postgresql-warning (warning postgresql-condition)
+  ())
+
+(define-condition postgresql-notification (postgresql-condition)
+  ()
+  (:report
+   (lambda (c stream)
+     (format stream "~@<Asynchronous notification on connection ~A: ~:@_~A~:@>"
+             (postgresql-condition-connection c)
+             (postgresql-condition-message c)))))
