@@ -23,7 +23,7 @@
   t)
 
 (defmethod clsql-sys:database-type-library-loaded ((database-type
-                                          (eql :postgresql-socket)))
+                                          (eql :postgresql-socket3)))
   "T if foreign library was able to be loaded successfully. Always true for
 socket interface"
   t)

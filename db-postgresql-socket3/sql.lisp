@@ -20,8 +20,8 @@
 (in-package #:cl-user)
 
 (defpackage :clsql-postgresql-socket3
-    (:use #:common-lisp #:clsql-sys #:postgresql-socket)
-    (:export #:postgresql-socket-database)
+    (:use #:common-lisp #:clsql-sys #:postgresql-socket3)
+    (:export #:postgresql-socket3-database)
     (:documentation "This is the CLSQL socket interface to PostgreSQL."))
 
 (in-package #:clsql-postgresql-socket3)
@@ -191,13 +191,13 @@
       (values *cursor* (length (fields *cursor*))))))
 
 (defmethod database-dump-result-set (result-set
-                                     (database postgresql-socket-database))
+                                     (database postgresql-socket3-database))
   (unless (done result-set)
     (loop :while (funcall (next-row result-set))))
   T)
 
 (defmethod database-store-next-row (result-set
-                                    (database postgresql-socket-database)
+                                    (database postgresql-socket3-database)
                                     list)
   (when (and (not (done result-set))
 	     (setf (done result-set) (funcall (next-row result-set))))
