@@ -208,50 +208,23 @@
 
 ;;;; Cursoring interface
 
-(defclass cursor ()
-  ((next-row :accessor next-row :initarg :next-row :initform nil)
-   (fields :accessor fields :initarg :fields :initform nil)
-   (next-field :accessor next-field :initarg :next-field :initform nil)
-   (done :accessor done :initarg :done :initform nil)))
-
-(defvar *cursor* ())
-
-(cl-postgres:def-row-reader clsql-cursored-row-reader (fields)
-  (setf *cursor*
-	(make-instance 'cursor
-		       :next-row #'cl-postgres:next-row
-		       :fields fields
-		       :next-field #'cl-postgres:next-field)))
 
 (defmethod database-query-result-set ((expression string)
                                       (database postgresql-socket3-database)
                                       &key full-set result-types)
   (declare (ignore result-types))
   (declare (ignore full-set))
-  (let ((connection (database-connection database))
-	*cursor*)
-    (with-postgresql-handlers (database expression)
-      (cl-postgres:exec-query connection expression 'clsql-cursored-row-reader)
-      (break "Built cursor")
-      (values *cursor* (length (fields *cursor*))))))
+  (error "Cursoring interface is not supported for postgresql-socket3-database try cl-postgres:exec-query with a custom row-reader"))
 
 (defmethod database-dump-result-set (result-set
                                      (database postgresql-socket3-database))
-  (unless (done result-set)
-    (loop :while (funcall (next-row result-set))))
+  (error "Cursoring interface is not supported for postgresql-socket3-database try cl-postgres:exec-query with a custom row-reader")
   T)
 
 (defmethod database-store-next-row (result-set
                                     (database postgresql-socket3-database)
                                     list)
-  (when (and (not (done result-set))
-	     (setf (done result-set) (funcall (next-row result-set))))
-    (let* ((data (loop :for field :across (fields result-set)
-		       :collect (funcall (next-field result-set) field))))
-      ;; Maybe?
-      ;(setf list data)
-      (setf (car list) (car data) (cdr list) (cdr data))
-      )))
+  (error "Cursoring interface is not supported for postgresql-socket3-database try cl-postgres:exec-query with a custom row-reader"))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
