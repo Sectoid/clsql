@@ -58,11 +58,11 @@
   (ecase *backend-warning-behavior*
     (:warn
      (warn 'sql-database-warning :database database
-           :message (postgresql-condition-message condition)))
+           :message (cl-postgres:database-error-message condition)))
     (:error
      (error 'sql-database-error :database database
             :message (format nil "Warning upgraded to error: ~A"
-                             (postgresql-condition-message condition))))
+                             (cl-postgres:database-error-message condition))))
     ((:ignore nil)
      ;; do nothing
      )))
@@ -72,7 +72,7 @@
          :database database
          :expression expression
          :error-id (type-of condition)
-         :message (postgresql-condition-message condition)))
+         :message (cl-postgres:database-error-message condition)))
 
 (defmacro with-postgresql-handlers
     ((database &optional expression)
@@ -84,7 +84,7 @@
        (handler-bind ((postgresql-warning
                        (lambda (c)
                          (convert-to-clsql-warning ,database-var c)))
-                      (postgresql-error
+                      (cl-postgres:database-error
                        (lambda (c)
                          (convert-to-clsql-error
                           ,database-var ,expression-var c))))
@@ -142,7 +142,7 @@
                :database-type database-type
                :connection-spec connection-spec
                :error-id (type-of c)
-               :message (postgresql-condition-message c)))
+               :message (cl-postgres:database-error-message c)))
       (:no-error (connection)
                  ;; Success, make instance
                  (make-instance 'postgresql-socket3-database
