@@ -184,20 +184,21 @@
 		 nil
 		 (funcall (cl-postgres::field-interpreter cl-postgres::field)
 			  stream cl-postgres::size)))))
-    (values
-      (loop :while (cl-postgres:next-row)
-	    :collect (loop :for field :across fields
-			   :collect (cl-postgres:next-field field)))
-      (when *include-field-names*
-	(loop :for field :across fields
-	      :collect (cl-postgres:field-name field))))))
+    (let ((results (loop :while (cl-postgres:next-row)
+			 :collect (loop :for field :across fields
+					:collect (cl-postgres:next-field field))))
+	  (col-names (when *include-field-names*
+		       (loop :for field :across fields
+			     :collect (cl-postgres:field-name field)))))
+      ;;multiple return values were not working here
+      (list results col-names))))
 
 (defmethod database-query ((expression string) (database postgresql-socket3-database) result-types field-names)
   (let ((connection (database-connection database))
 	(cl-postgres:*sql-readtable* *sqlreader*))
     (with-postgresql-handlers (database expression)
       (let ((*include-field-names* field-names))
-	(cl-postgres:exec-query connection expression #'clsql-default-row-reader))
+	(apply #'values (cl-postgres:exec-query connection expression #'clsql-default-row-reader)))
       )))
 
 (defmethod database-execute-command
