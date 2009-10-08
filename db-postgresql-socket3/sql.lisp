@@ -201,6 +201,33 @@
 	(apply #'values (cl-postgres:exec-query connection expression #'clsql-default-row-reader)))
       )))
 
+(defmethod query ((obj command-object) &key (database *default-database*)
+                  (result-types :auto) (flatp nil) (field-names t))
+  (clsql-sys::record-sql-command (expression obj) database)
+  (multiple-value-bind (rows names)
+      (database-query obj database result-types field-names)
+    (let ((result (if (and flatp (= 1 (length (car rows))))
+                      (mapcar #'car rows)
+		      rows)))
+      (clsql-sys::record-sql-result result database)
+      (if field-names
+          (values result names)
+	  result))))
+
+(defmethod database-query ((obj command-object) (database postgresql-socket3-database) result-types field-names)
+  (let ((connection (database-connection database))
+	(cl-postgres:*sql-readtable* *sqlreader*))
+    (with-postgresql-handlers (database obj)
+      (let ((*include-field-names* field-names))
+	(unless (has-been-prepared obj)
+	  (cl-postgres:prepare-query connection (prepared-name obj) (expression obj))
+	  (setf (has-been-prepared obj) T))
+	(apply #'values (cl-postgres:exec-prepared
+			 connection
+			 (prepared-name obj)
+			 (parameters obj)
+			 #'clsql-default-row-reader))))))
+
 (defmethod database-execute-command
     ((expression string) (database postgresql-socket3-database))
   (let ((connection (database-connection database)))

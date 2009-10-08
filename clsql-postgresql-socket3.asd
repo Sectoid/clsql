@@ -3,9 +3,9 @@
 ;;;; FILE IDENTIFICATION
 ;;;;
 ;;;; Name:          clsql-postgresql-socket.asd
-;;;; Purpose:       ASDF file for CLSQL PostgresSQL socket backend
-;;;; Programmer:    Kevin M. Rosenberg
-;;;; Date Started:  Aug 2002
+;;;; Purpose:       ASDF file for CLSQL PostgresSQL socket (protocol vs 3) backend
+;;;; Programmer:    Russ Tyndall
+;;;; Date Started:  Sept 2009
 ;;;;
 ;;;; $Id$
 ;;;;
@@ -33,6 +33,7 @@
   :components
   ((:module :db-postgresql-socket3
 	    :serial T
-	    :components ((:file "package")
+	    :components ((:file "command-object")
+			 (:file "package")
 			 (:file "api")
 			 (:file "sql")))))
