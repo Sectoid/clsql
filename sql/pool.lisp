@@ -44,7 +44,8 @@ command to put the connection back into its default state."
 	    (handler-case
 		(case (database-underlying-type pconn)
 		  (:postgresql
-		     (database-execute-command "RESET ALL" pconn))
+		     ;; This resets the connection to "New" state
+		     (database-execute-command "DISCARD ALL;" pconn))
 		  (:mysql
 		     (database-query "SHOW ERRORS LIMIT 1" pconn nil nil))
 		  (:mssql
@@ -74,7 +75,7 @@ Disconnecting.~%"
           (setf (conn-pool conn) pool))
         conn)))
 
-(defun release-to-conn-pool (conn)
+(defmethod release-to-conn-pool (conn)
   (let ((pool (conn-pool conn)))
     (with-process-lock ((conn-pool-lock pool) "Release to pool")
       (vector-push-extend conn (free-connections pool)))))

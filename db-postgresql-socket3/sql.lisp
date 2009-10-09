@@ -155,6 +155,10 @@
   (cl-postgres:close-database (database-connection database))
   t)
 
+(defmethod clsql-sys::release-to-conn-pool :before ((conn postgresql-socket3-database))
+  ;; This resets the connection to "New" state
+  (database-execute-command "DISCARD ALL;" conn))
+
 (defvar *include-field-names* nil)
 
 
