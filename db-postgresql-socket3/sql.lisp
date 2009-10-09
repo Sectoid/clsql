@@ -236,7 +236,25 @@
     ((expression string) (database postgresql-socket3-database))
   (let ((connection (database-connection database)))
     (with-postgresql-handlers (database expression)
-      (cl-postgres:exec-query connection expression))))
+      ;; return row count?
+      (second (multiple-value-list (cl-postgres:exec-query connection expression))))))
+
+(defmethod execute-command ((obj command-object)
+                            &key (database *default-database*))
+  (clsql-sys::record-sql-command (expression obj) database)
+  (let ((res (database-execute-command obj database)))
+    (clsql-sys::record-sql-result res database)
+    ;; return row count?
+    res))
+
+(defmethod database-execute-command
+    ((obj command-object) (database postgresql-socket3-database))
+  (let ((connection (database-connection database)))
+    (with-postgresql-handlers (database obj)
+      (unless (has-been-prepared obj)
+	(cl-postgres:prepare-query connection (prepared-name obj) (expression obj))
+	(setf (has-been-prepared obj) T))
+      (second (multiple-value-list (cl-postgres:exec-prepared connection (prepared-name obj) (parameters obj)))))))
 
 ;;;; Cursoring interface
 
