@@ -32,6 +32,12 @@
 		      :documentation "Have we already prepared this command object")
    ))
 
+(defun command-object (expression &optional parameters (prepared-name ""))
+  (make-instance 'command-object
+		 :expression expression
+		 :parameters parameters
+		 :prepared-name prepared-name))
+
 (export '(expression parameters prepared-name has-been-prepared command-object))
 
 
