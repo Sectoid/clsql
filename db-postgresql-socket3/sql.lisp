@@ -345,8 +345,6 @@
 
 (defmethod database-list-tables ((database postgresql-socket3-database) &key owner)
   (clsql:query (command-object "
-SELECT $1::Text as table_name
-UNION 
 SELECT table_name FROM information_schema.tables
                                 WHERE ($1::Text IS NULL or table_schema = $1::text)"
 			       (list (or owner :null)))
