@@ -334,3 +334,21 @@
 (defmethod read-sql-value (val (type (eql 'generalized-boolean)) (database postgresql-socket3-database) db-type)
   (declare (ignore database db-type))
   val)
+
+(defmethod clsql-sys::%table-exists-p (name (database postgresql-socket3-database) &key owner )
+  (unless database (setf database *default-database*))
+  (when (clsql:query (command-object "SELECT 1 FROM information_schema.tables WHERE table_name=$1 and ($2::text IS NULL or table_schema = $2::text)"
+				     (list name owner))
+		     :flatp T
+		     :database database)
+    T))
+
+(defmethod database-list-tables ((database postgresql-socket3-database) &key owner)
+  (clsql:query (command-object "
+SELECT $1::Text as table_name
+UNION 
+SELECT table_name FROM information_schema.tables
+                                WHERE ($1::Text IS NULL or table_schema = $1::text)"
+			       (list (or owner :null)))
+	       :flatp T
+	       :database database))
