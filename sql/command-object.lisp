@@ -32,12 +32,18 @@
 		      :documentation "Have we already prepared this command object")
    ))
 
+(defun reset-command-object (co)
+  "Resets the command object to have no name and to be unprepared
+     (This is useful if you want to run a command against a second database)"
+  (setf (prepared-name co) ""
+	(has-been-prepared co) nil))
+
 (defun command-object (expression &optional parameters (prepared-name ""))
   (make-instance 'command-object
 		 :expression expression
 		 :parameters parameters
 		 :prepared-name prepared-name))
 
-(export '(expression parameters prepared-name has-been-prepared command-object))
+(export '(expression parameters prepared-name has-been-prepared command-object reset-command-object))
 
 
