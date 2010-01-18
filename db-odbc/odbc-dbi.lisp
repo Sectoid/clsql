@@ -465,6 +465,10 @@ This makes the functions db-execute-command and db-query thread safe."
 		 (#.odbc::$SQL_C_SSHORT :short)
 		 (#.odbc::$SQL_C_STINYINT :short)
 		 (#.odbc::$SQL_C_SBIGINT #.odbc::$ODBC-BIG-TYPE)
+		 (#.odbc::$SQL_C_CHAR
+		    (or (case (aref column-sql-types i)
+			  (#.odbc::$SQL_NUMERIC :double))
+			T))
 		 (t t)))
 	      (t t)))))
   query)

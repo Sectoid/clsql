@@ -678,9 +678,11 @@ as possible second argument) to the desired representation of date/time/timestam
                    (#.$SQL_SMALLINT (get-cast-short data-ptr)) ;; ??
                    (#.$SQL_INTEGER (get-cast-int data-ptr))
                    (#.$SQL_BIGINT (get-cast-big data-ptr))
-                   (#.$SQL_DECIMAL
-                    (let ((*read-base* 10))
-                      (read-from-string (get-cast-foreign-string data-ptr))))
+                   ((#.$SQL_DECIMAL #.$SQL_NUMERIC)
+		      (let* ((*read-base* 10)
+			     (*read-default-float-format* 'double-float)
+			     (str (get-cast-foreign-string data-ptr)))
+			(read-from-string str)))
                    (#.$SQL_BIT (get-cast-byte data-ptr))
                    (t
                     (case c-type
