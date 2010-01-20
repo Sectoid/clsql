@@ -40,10 +40,10 @@
   " This causes the semantics to match cl-sql instead of cl-postgresql
   "
   (setf (slot-value o 'parameters)
-	(loop for p in (parameters o)
-	      collect (cond ((null p) :null)
-			    ((member p (list :false :F)) nil)
-			    (T p)))))
+	(loop for p in new
+	      collecting (cond ((null p) :null)
+			       ((member p (list :false :F)) nil)
+			       (T p)))))
 
 (defun reset-command-object (co)
   "Resets the command object to have no name and to be unprepared
