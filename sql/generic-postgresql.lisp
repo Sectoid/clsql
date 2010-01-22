@@ -22,14 +22,6 @@
 
 ;; Object functions
 
-(defmethod database-output-sql ((self wall-time) (database generic-postgresql-database))
-  (declare (ignore database))
-  (concatenate 'string "'" (format-time nil self :format :iso8601)  "'"))
-
-(defmethod database-output-sql ((self date) (database generic-postgresql-database))
-  (declare (ignore database))
-  (concatenate 'string "'" (format-time nil (date->time self) :format :iso8601)  "'"))
-
 (defmethod database-get-type-specifier (type args database
                                         (db-type (eql :postgresql)))
   (declare (ignore type args database))

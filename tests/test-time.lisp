@@ -214,6 +214,13 @@
   t)
 
 
+(deftest :time/14-usec
+    (let* ((time (clsql-sys:make-time :year 2010 :month 1 :day 4
+				      :hour 14 :minute 15 :second 44 :usec 3))
+	   (string-time (clsql-sys:format-time nil time :format :iso))
+	   (time2 (clsql-sys:parse-timestring string-time)))
+      (clsql-sys:time= time time2))
+  t)
 
 
 (def-view-class datetest ()
@@ -243,12 +250,10 @@
 	  (assert o (o) "o shouldnt be null here (we should have just inserted)")
 	  (update-records-from-instance o)
 	  (update-instance-from-records o)
-	  (assert (time= (testtime o) time) (time o) "Time of o: ~a should be time:~a" (testtime o) time)
+	  (assert (time= (testtime o) time) (time o) "Time of o: ~s should be time:~s" (testtime o) time)
 	  #.(clsql-sys:locally-disable-sql-reader-syntax)
 	  )
 	)
       nil
       )
-  nil)
-
-))
+  nil)))
