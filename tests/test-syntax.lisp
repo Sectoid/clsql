@@ -145,6 +145,23 @@
     (clsql:sql [not [foo]])
   "(NOT (FOO))")
 
+;;; Test how we apply logical operators when we have different numbers of children
+;;; This is useful if we wish to (apply #'sql-and some-list) without haveing to do
+;;; alot of length checking 
+(deftest :syntax/logical/4
+  (clsql:sql [and ])
+  "")
+
+(deftest :syntax/logical/5
+  (clsql:sql [and [= [foo] [bar]]])
+  "(FOO = BAR)")
+
+(deftest :syntax/logical/6
+  (clsql:sql [and [= [foo] [bar]]
+		  [= [bar] [bast]]
+		  [= [block] [blech]]])
+  "((FOO = BAR) AND (BAR = BAST) AND (BLOCK = BLECH))")
+
 
 (deftest :syntax/null/1
     (clsql:sql [null [foo]])
