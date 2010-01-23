@@ -262,9 +262,21 @@
 			      :oodml/update-instance/6 :oodml/update-instance/7
 			      :oodml/db-auto-sync/3 :oodml/db-auto-sync/4))
 	   (push (cons test ":auto-increment not by backend.") skip-tests))
+	  ((and (not (member *test-database-underlying-type*
+			'(:postgresql :postgresql-socket)))
+		(clsql-sys:in test
+			      :time-test-retrieving/saving/retrieving-fdml
+			      :time-test-retrieving/saving/retrieving-oodml-without-usecs
+			      :time-test-retrieving/saving/retrieving-oodml-with-usecs))
+	   (push (cons test "cant run the same date/time tests everywhere that we do on postgres because there are not standard datetime database types.")
+		 skip-tests))
+	  ((and (member *test-database-underlying-type* '(:mysql))
+		(clsql-sys:in test :time-test-retrieving/saving/retrieving-fdml-with-usec-crossplatform-HAH))
+	   (push (cons test "This platform does not support fractional seconds (on timestamp columns), see http://forge.mysql.com/worklog/task.php?id=946 perhaps?")
+		 skip-tests))
           (t
            (push test-form test-forms)))))
-      (values (nreverse test-forms) (nreverse skip-tests))))
+    (values (nreverse test-forms) (nreverse skip-tests))))
 
 (defun rapid-load (type &optional (position 0))
   "Rapid load for interactive testing."
