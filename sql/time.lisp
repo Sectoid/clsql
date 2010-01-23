@@ -427,19 +427,31 @@
 
 ;; ------------------------------------------------------------
 ;; Formatting and output
+(defvar *output-times-in-localtime* T
+  "This variable controls whether iso timestamps are suffixed with a Z (meaning UTC),
+   or without a Z which indicates localtime")
 
-(defun db-timestring (time &optional stream)
+(defun db-timestring (time &key stream database)
   "return the string to store the given time in the database"
-  (iso-timestring time stream))
+  (if stream
+      (progn (write-char #\' stream) (iso-timestring time :stream stream :database database) (write-char #\' stream))
+      (concatenate 'string "'" (iso-timestring time :database database) "'")))
 
-(defun iso-timestring (time &optional stream)
+(defun use-localtime? (&optional database)
+  "A predicate to tell you if a date should be output as a local time or utc
+    based on *output-times-in-localtime* and database-uses-localtimes?"
+  (or (and database (database-uses-localtimes? database))
+      (and (not database) *output-times-in-localtime*)))
+
+(defun iso-timestring (time &key stream database)
   "return the string to store the given time in the database"
   (let (*print-pretty*)
     (multiple-value-bind (usec second minute hour day month year dow)
 	(decode-time time)
       (declare (ignore dow))
-      (format stream "~4,'0D-~2,'0D-~2,'0DT~2,'0D:~2,'0D:~2,'0D.~6,'0DZ"
-	      year month day hour minute second usec))))
+      (format stream "~4,'0D-~2,'0D-~2,'0D ~2,'0D:~2,'0D:~2,'0D.~6,'0D~a"
+	      year month day hour minute second usec
+	      (if (use-localtime? database) "" "Z")))))
 
 (defun db-datestring (date)
   (db-timestring (date->time date)))
@@ -788,7 +800,8 @@ with the given options"
 (defun format-time (stream time &key format
                     (date-separator "-")
                     (time-separator ":")
-                    (internal-separator " "))
+                    (internal-separator " ")
+		    database)
   "produces on stream the timestring corresponding to the wall-time
 with the given options"
   (let ((*print-circle* nil))
@@ -796,26 +809,23 @@ with the given options"
         (decode-time time)
       (case format
         (:pretty
-         (format stream "~A ~A, ~A ~D, ~D"
-                 (pretty-time hour minute)
-                 (day-name dow)
-                 (month-name month)
-                 day
-                 year))
+	   (format stream "~A ~A, ~A ~D, ~D"
+		   (pretty-time hour minute)
+		   (day-name dow)
+		   (month-name month)
+		   day
+		   year))
         (:short-pretty
-         (format stream "~A, ~D/~D/~D"
-                 (pretty-time hour minute)
-                 month day year))
+	   (format stream "~A, ~D/~D/~D"
+		   (pretty-time hour minute)
+		   month day year))
         ((:iso :iso8601)
-         (let ((string (iso-timestring time)))
-           (if stream
-               (write-string string stream)
-             string)))
+	   (iso-timestring time :stream stream :database database))
         (t
-         (format stream "~2,'0D~A~2,'0D~A~2,'0D~A~2,'0D~A~2,'0D~A~2,'0D.~6,'0D"
-                 year date-separator month date-separator day
-                 internal-separator hour time-separator minute time-separator
-                 second usec))))))
+	   (format stream "~2,'0D~A~2,'0D~A~2,'0D~A~2,'0D~A~2,'0D~A~2,'0D.~6,'0D"
+		   year date-separator month date-separator day
+		   internal-separator hour time-separator minute time-separator
+		   second usec))))))
 
 (defun pretty-time (hour minute)
   (cond

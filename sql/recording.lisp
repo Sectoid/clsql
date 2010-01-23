@@ -149,7 +149,7 @@ returned is that used for recording SQL commands or results."
         database
       (when command-recording-stream
         (format command-recording-stream "~&;; ~A ~A => ~A~%"
-                (iso-timestring (get-time))
+                (iso-timestring (get-time) :database database)
                 (database-name database)
                 expr)))))
 
@@ -159,7 +159,7 @@ returned is that used for recording SQL commands or results."
         database
       (when result-recording-stream
         (format result-recording-stream "~&;; ~A ~A <= ~A~%"
-                (iso-timestring (get-time))
+                (iso-timestring (get-time) :database database)
                 (database-name database)
                 res)))))
 
