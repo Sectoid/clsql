@@ -83,7 +83,9 @@
   (run-function-append-report-file 'run-tests report-file))
 
 
-(defun run-tests (&key (report-stream *standard-output*) (sexp-report-stream nil))
+(defun run-tests (&key (report-stream *standard-output*) (sexp-report-stream nil)
+		  (suites (append *rt-internal* *rt-connection* *rt-basic* *rt-fddl* *rt-fdml*
+				  *rt-ooddl* *rt-oodml* *rt-syntax* *rt-time*)))
   ;; clear SQL-OUTPUT cache
   (setq clsql-sys::*output-hash* (make-hash-table :test #'equal))
   (let ((specs (read-specs))
@@ -99,7 +101,7 @@
       (dolist (spec (db-type-spec db-type specs))
         (let ((*test-connection-spec* spec)
               (*test-connection-db-type* db-type))
-          (do-tests-for-backend db-type spec)))))
+          (do-tests-for-backend db-type spec :suites suites)))))
   (zerop *error-count*))
 
 (defun load-necessary-systems (specs)
@@ -131,12 +133,14 @@
               "")
           ))
 
-(defun do-tests-for-backend (db-type spec)
+(defun do-tests-for-backend (db-type spec &key
+			     (suites (append *rt-internal* *rt-connection* *rt-basic* *rt-fddl* *rt-fdml*
+					     *rt-ooddl* *rt-oodml* *rt-syntax* *rt-time*)) )
   (test-connect-to-database db-type spec)
 
   (unwind-protect
        (multiple-value-bind (test-forms skip-tests)
-           (compute-tests-for-backend db-type *test-database-underlying-type*)
+           (compute-tests-for-backend db-type *test-database-underlying-type* :suites suites)
 
            (write-report-banner "Test Suite" db-type *report-stream*)
 
@@ -171,12 +175,12 @@
     (disconnect)))
 
 
-(defun compute-tests-for-backend (db-type db-underlying-type)
+(defun compute-tests-for-backend (db-type db-underlying-type
+				  &key (suites (append *rt-internal* *rt-connection* *rt-basic* *rt-fddl* *rt-fdml*
+						       *rt-ooddl* *rt-oodml* *rt-syntax* *rt-time*)))
   (let ((test-forms '())
         (skip-tests '()))
-    (dolist (test-form (append *rt-internal* *rt-connection* *rt-basic* *rt-fddl* *rt-fdml*
-                               *rt-ooddl* *rt-oodml* *rt-syntax* *rt-time*
-			       ))
+    (dolist (test-form (if (listp suites) suites (list suites)))
       (let ((test (second test-form)))
         (cond
           ((and (null (clsql-sys:db-type-has-views? db-underlying-type))
