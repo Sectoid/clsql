@@ -162,6 +162,12 @@
 		  [= [block] [blech]]])
   "((FOO = BAR) AND (BAR = BAST) AND (BLOCK = BLECH))")
 
+(deftest :syntax/logical/7
+  (clsql:sql [and [= [foo] [bar]]
+		  [and ]
+		  [and [= [bar] [bast]]]])
+  "((FOO = BAR) AND (BAR = BAST))")
+
 
 (deftest :syntax/null/1
     (clsql:sql [null [foo]])
