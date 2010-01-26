@@ -249,8 +249,6 @@
 			      (member name '("sysconstraints" "syssegments"
 					     :test #'string-equal)))))
 	    collect name)))
-hema logic.:sql/generic-odbc.lisp
-
 
 (defmethod database-list-attributes ((table string) (database generic-odbc-database)
                                      &key (owner nil))
