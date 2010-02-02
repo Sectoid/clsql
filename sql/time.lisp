@@ -1,8 +1,6 @@
 ;;;; -*- Mode: LISP; Syntax: ANSI-Common-Lisp; Base: 10 -*-
 ;;;; *************************************************************************
 ;;;;
-;;;; $Id$
-;;;;
 ;;;; A variety of structures and function for creating and
 ;;;; manipulating dates, times, durations and intervals for
 ;;;; CLSQL.
@@ -429,58 +427,51 @@
 
 ;; ------------------------------------------------------------
 ;; Formatting and output
-
-(defvar +decimal-printer+ #(#\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9))
-
-(defun db-timestring (time)
+(defun db-timestring (time &key stream)
   "return the string to store the given time in the database"
-  (declare (optimize (speed 3)))
-  (let ((output (copy-seq "'XXXX-XX-XX XX:XX:XX.")))
-    (flet ((inscribe-base-10 (output offset size decimal)
-             (declare (type fixnum offset size decimal)
-                      (type (simple-vector 10) +decimal-printer+))
-             (dotimes (x size)
-               (declare (type fixnum x)
-                        (optimize (safety 0)))
-               (multiple-value-bind (next this)
-                   (floor decimal 10)
-                 (setf (aref output (+ (- size x 1) offset))
-                       (aref +decimal-printer+ this))
-                 (setf decimal next)))))
-      (multiple-value-bind (usec second minute hour day month year)
-          (decode-time time)
-        (inscribe-base-10 output 1 4 year)
-        (inscribe-base-10 output 6 2 month)
-        (inscribe-base-10 output 9 2 day)
-        (inscribe-base-10 output 12 2 hour)
-        (inscribe-base-10 output 15 2 minute)
-        (inscribe-base-10 output 18 2 second)
-        (format nil "~a~d'" output usec)))))
+  (if stream
+      (progn (write-char #\' stream) (iso-timestring time :stream stream) (write-char #\' stream))
+      (concatenate 'string "'" (iso-timestring time) "'")))
 
-(defun iso-timestring (time)
-  "return the string to store the given time in the database"
-  (declare (optimize (speed 3)))
-  (let ((output (copy-seq "XXXX-XX-XX XX:XX:XX,")))
-    (flet ((inscribe-base-10 (output offset size decimal)
-             (declare (type fixnum offset size decimal)
-                      (type (simple-vector 10) +decimal-printer+))
-             (dotimes (x size)
-               (declare (type fixnum x)
-                        (optimize (safety 0)))
-               (multiple-value-bind (next this)
-                   (floor decimal 10)
-                 (setf (aref output (+ (- size x 1) offset))
-                       (aref +decimal-printer+ this))
-                 (setf decimal next)))))
-      (multiple-value-bind (usec second minute hour day month year)
-          (decode-time time)
-        (inscribe-base-10 output 0 4 year)
-        (inscribe-base-10 output 5 2 month)
-        (inscribe-base-10 output 8 2 day)
-        (inscribe-base-10 output 11 2 hour)
-        (inscribe-base-10 output 14 2 minute)
-        (inscribe-base-10 output 17 2 second)
-        (format nil "~a,~d" output usec)))))
+(defun iso-timestring (time &key stream)
+  (multiple-value-bind (usec sec min hour day month year dow)
+      (decode-time time)
+    (declare (ignore dow))
+    (flet ((fmt (stream)
+	     (when (< year 1000) (princ #\0 stream))
+	     (when (< year 100) (princ #\0 stream))
+	     (when (< year 10) (princ #\0 stream))
+	     (princ year stream)
+	     (princ #\- stream)
+	     (when (< month 10) (princ #\0 stream))
+	     (princ month stream)
+	     (princ #\- stream)
+	     (when (< day 10) (princ #\0 stream))
+	     (princ day stream)
+	     (princ #\T stream) ;strict ISO says T here isn't optional.
+	     (when (< hour 10) (princ #\0 stream))
+	     (princ hour stream)
+	     (princ #\: stream)
+	     (when (< min 10) (princ #\0 stream))
+	     (princ min stream)
+	     (princ #\: stream)
+	     (when (< sec 10) (princ #\0 stream))
+	     (princ sec stream)
+	     (when (and usec (plusp usec))
+	       ;; we dont do this because different dbs support differnt precision levels
+	       (princ #\. stream)
+	       (loop for i from 5 downto 0
+		     for x10 = (expt 10 i)
+		     do (multiple-value-bind (quo rem)
+			    (floor (/ usec x10))
+			  (setf usec (- usec (* quo x10)))
+			  (princ quo stream)
+			  (when (= rem 0) (return)))))
+	     nil))
+      (if stream
+	  (fmt stream)
+	  (with-output-to-string (stream)
+	    (fmt stream))))))
 
 (defun db-datestring (date)
   (db-timestring (date->time date)))
@@ -837,29 +828,22 @@ with the given options"
         (decode-time time)
       (case format
         (:pretty
-         (format stream "~A ~A, ~A ~D, ~D"
-                 (pretty-time hour minute)
-                 (day-name dow)
-                 (month-name month)
-                 day
-                 year))
+	   (format stream "~A ~A, ~A ~D, ~D"
+		   (pretty-time hour minute)
+		   (day-name dow)
+		   (month-name month)
+		   day
+		   year))
         (:short-pretty
-         (format stream "~A, ~D/~D/~D"
-                 (pretty-time hour minute)
-                 month day year))
-        (:iso
-         (let ((string (iso-timestring time)))
-           (if stream
-               (write-string string stream)
-             string)))
-	(:iso8601 
-         (format stream "~4,'0D-~2,'0D-~2,'0DT~2,'0D:~2,'0D:~2,'0D.~DZ"
-                 year month day hour minute second usec))
-        (t
-         (format stream "~2,'0D~A~2,'0D~A~2,'0D~A~2,'0D~A~2,'0D~A~2,'0D.~6,'0D"
-                 year date-separator month date-separator day
-                 internal-separator hour time-separator minute time-separator
-                 second usec))))))
+	   (format stream "~A, ~D/~D/~D"
+		   (pretty-time hour minute)
+		   month day year))
+        ((:iso :iso8601) (iso-timestring time :stream stream))
+        (t (format stream "~2,'0D~A~2,'0D~A~2,'0D~A~2,'0D~A~2,'0D~A~2,'0D.~6,'0D"
+		   year date-separator month date-separator day
+		   internal-separator hour time-separator minute time-separator
+		   second usec)
+	   )))))
 
 (defun pretty-time (hour minute)
   (cond
@@ -1076,10 +1060,9 @@ with the given options"
              (setf (time-mjd date) (time-mjd new-date))
              (setq date new-date))))))
   (let ((mjd (time-mjd date))
-        (sec (time-second date))
-        (usec (time-usec date)))
+        (sec (time-second date)))
     (multiple-value-bind (sec-new usec-new)
-        (floor (+ usec
+        (floor (+ usec (time-usec date)
                   (* 1000000
                      (+ sec second
                         (* 60 minute)
@@ -1206,21 +1189,17 @@ rules"
 timestring starts with P, read a duration; otherwise read an ISO 8601
 formatted date string."
   (declare (ignore junk-allowed))
-  (if (typep timestring '(or wall-time date))
-      timestring
-      (let ((string (subseq timestring start end)))
-	(if (char= (aref string 0) #\P)
-	    (parse-iso-8601-duration string)
-	    (parse-iso-8601-time string)))))
+  (let ((string (subseq timestring start end)))
+    (if (char= (aref string 0) #\P)
+        (parse-iso-8601-duration string)
+      (parse-iso-8601-time string))))
 
 (defun parse-datestring (datestring &key (start 0) end junk-allowed)
   "parse a ISO 8601 timestring and return the corresponding date.
 Will throw a hissy fit if the date string is a duration. Will ignore any precision beyond day (hour/min/sec/usec)."
-  (if (typep datestring '(or wall-time date))
-      datestring
-      (let ((parsed-value (parse-timestring datestring :start start :end end :junk-allowed junk-allowed)))
-	(ecase (type-of parsed-value)
-	  (wall-time (%make-date :mjd (time-mjd parsed-value)))))))
+  (let ((parsed-value (parse-timestring datestring :start start :end end :junk-allowed junk-allowed)))
+    (ecase (type-of parsed-value)
+      (wall-time (%make-date :mjd (time-mjd parsed-value))))))
 
 
 (defvar *iso-8601-duration-delimiters*
@@ -1258,8 +1237,9 @@ Will throw a hissy fit if the date string is a duration. Will ignore any precisi
           (index (length string))
           (months/minutes nil))
       (loop
-       (multiple-value-bind (duration next-index duration-type)
+       (multiple-value-bind (duration end next-index duration-type)
            (iso-8601-duration-subseq string index)
+         (declare (ignore end))
          (case duration-type
            (:years
             (incf years duration))
@@ -1324,16 +1304,18 @@ Will throw a hissy fit if the date string is a duration. Will ignore any precisi
                       (char= #\. (char string 19))))
              (multiple-value-bind (parsed-usec usec-end)
                  (parse-integer string :start 20 :junk-allowed t)
-               (setf usec          (or parsed-usec 0)
-                     gmt-sec-offset (if (<= (+ 3 usec-end)  strlen)
-                                        (let ((skip-to (or (position #\+ string :start 19)
-                                                           (position #\- string :start 19))))
-                                          (if skip-to
-                                              (* 60 60
-                                                 (parse-integer string :start skip-to
-                                                                :end (+ skip-to 3)))
-                                              0))
-                                        0))))
+               (let ((parsed-usec (and parsed-usec
+				       (floor (* parsed-usec (expt 10 (+ 6 (- usec-end) 20)))))))
+		 (setf usec          (or parsed-usec 0)
+		       gmt-sec-offset (if (<= (+ 3 usec-end)  strlen)
+					  (let ((skip-to (or (position #\+ string :start 19)
+							     (position #\- string :start 19))))
+					    (if skip-to
+						(* 60 60
+						   (parse-integer string :start skip-to
+								  :end (+ skip-to 3)))
+						0))
+					  0)))))
             (t
              (setf usec           0
                    gmt-sec-offset (if (<= 22  strlen)
