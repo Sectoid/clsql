@@ -50,8 +50,9 @@
   nil) ;;; library will be loaded by a loader file
 
 (defmethod operation-done-p ((o load-op) (c clsql-uffi-source-file))
-  (and (symbol-function (intern (symbol-name '#:atol64)
-				(find-package '#:clsql-uffi)))
+  (and (ignore-errors
+	 (symbol-function (intern (symbol-name '#:atol64)
+				  (find-package '#:clsql-uffi))))
        t))
 
 (defmethod perform ((o compile-op) (c clsql-uffi-source-file))
