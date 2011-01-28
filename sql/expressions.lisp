@@ -158,6 +158,7 @@
 	       "do our best not to output sql that we can guarantee is invalid. 
               if the ident has a space or quote in it, instead output a quoted
 	      identifier containing those chars"
+               
 	       (when (and (not (quoted-string-p inp))
 			  (find-if
 			   (lambda (x) (member x '(#\space #\' #\")
@@ -903,10 +904,11 @@ uninclusive, and the args from that keyword to the end."
                 (null (position #\\ str)))
            (concatenate 'string "'" str "'"))
           (t
-           (let ((buf (make-string (+ (* len 2) 2) :initial-element #\')))
+           (let ((buf (make-string (+ (* len 2) 3) :initial-element #\')))
              (declare (simple-string buf))
+             (setf (aref buf 0) #\E)
              (do* ((i 0 (incf i))
-                   (j 1 (incf j)))
+                   (j 2 (incf j)))
                   ((= i len) (subseq buf 0 (1+ j)))
                (declare (type fixnum i j))
                (let ((char (aref str i)))
