@@ -1,8 +1,6 @@
 ;;;; -*- Mode: LISP; Syntax: ANSI-Common-Lisp; Base: 10 -*-
 ;;;; *************************************************************************
 ;;;;
-;;;; $Id$
-;;;;
 ;;;; Base database functions
 ;;;;
 ;;;; This file is part of CLSQL.
@@ -20,6 +18,8 @@
 CONNECT. Meaningful values are :new, :warn-new, :error, :warn-old
 and :old.")
 
+;;TODO: this variable appears to be global, not thread specific and is
+;; not protected when modifying the list.
 (defvar *connected-databases* nil
   "List of active database objects.")
 
@@ -72,7 +72,8 @@ error is signalled."
                 &key (if-exists *connect-if-exists*)
                 (make-default t)
                 (pool nil)
-                (database-type *default-database-type*))
+                (database-type *default-database-type*)
+                (encoding nil))
   "Connects to a database of the supplied DATABASE-TYPE which
 defaults to *DEFAULT-DATABASE-TYPE*, using the type-specific
 connection specification CONNECTION-SPEC. The value of IF-EXISTS,
@@ -103,7 +104,7 @@ be taken from this pool."
                   :verbose nil))
 
   (if pool
-      (let ((conn (acquire-from-pool connection-spec database-type pool)))
+      (let ((conn (acquire-from-pool connection-spec database-type pool encoding)))
         (when make-default (setq *default-database* conn))
         conn)
       (let* ((db-name (database-name-from-spec connection-spec database-type))
@@ -151,6 +152,7 @@ be taken from this pool."
           (setf (slot-value result 'state) :open)
           (pushnew result *connected-databases*)
           (when make-default (setq *default-database* result))
+          (setf (encoding result) encoding)
           result))))
 
 
@@ -174,6 +176,7 @@ from a pool it will be released to this pool."
                 (setf *default-database* (car *connected-databases*)))
               t))
           (when (database-disconnect database)
+	    ;;TODO: RACE COND: 2 threads disconnecting could stomp on *connected-databases*
             (setf *connected-databases* (delete database *connected-databases*))
             (when (eq database *default-database*)
               (setf *default-database* (car *connected-databases*)))
@@ -231,7 +234,7 @@ database connection cannot be closed, an error is signalled."
           (ignore-errors (disconnect :database db))
           (disconnect :database db :error nil)))
 
-    (connect (connection-spec db))))
+    (connect (connection-spec db) :encoding (encoding db))))
 
 
 (defun status (&optional full)
@@ -309,10 +312,28 @@ system specified by DATABASE-TYPE."
     (setq connection-spec (string-to-list-connection-spec connection-spec)))
   (database-list connection-spec database-type))
 
+(defun encoding (db)
+  (when (typep db 'database)
+    (slot-value db 'encoding)))
+
+(defun (setf encoding) (encoding db)
+  (when (typep db 'database)
+    (setf (slot-value db 'encoding) encoding)
+    (when (eql (slot-value db 'state) :open)
+      (case (database-type db)
+        ;; FIXME: If database object is open then
+        ;; send command to SQL engine specifying the character
+        ;; encoding for the database
+        (:mysql
+         )
+        ((:postgresql :postgresql-socket)
+         )))))
+
 (defmacro with-database ((db-var connection-spec
                                  &key make-default pool
                                  (if-exists *connect-if-exists*)
-                                 (database-type *default-database-type*))
+                                 (database-type *default-database-type*)
+                                 (encoding nil))
                                  &body body)
   "Evaluate the body in an environment, where DB-VAR is bound to the
 database connection given by CONNECTION-SPEC and CONNECT-ARGS.  The
@@ -322,7 +343,8 @@ from the body. MAKE-DEFAULT has a default value of NIL."
                            :database-type ,database-type
                            :if-exists ,if-exists
                            :pool ,pool
-                           :make-default ,make-default)))
+                           :make-default ,make-default
+                           :encoding ,encoding)))
      (unwind-protect
       (let ((,db-var ,db-var))
         (progn ,@body))
@@ -333,4 +355,3 @@ from the body. MAKE-DEFAULT has a default value of NIL."
   `(progv '(*default-database*)
        (list ,database)
      ,@body))
-

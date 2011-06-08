@@ -3,7 +3,6 @@
 ;;;; File:    test-fdml.lisp
 ;;;; Author:  Marcus Pearce <m.t.pearce@city.ac.uk>, Kevin Rosenberg
 ;;;; Created: 30/03/2004
-;;;; Updated: $Id$
 ;;;;
 ;;;; Tests for the CLSQL Functional Data Manipulation Language
 ;;;; (FDML).
@@ -122,19 +121,6 @@
 		(sort (mapcar #'(lambda (f) (truncate (read-from-string f))) res)
 		      #'<=))))
   t (2 3 4 5 6 7 8 9 10))
-
-
-(deftest :fdml/execute-command/1
-    (with-dataset *ds-employees*
-      (values
-	(clsql:table-exists-p [foo] :owner *test-database-user*)
-	(progn
-	  (clsql:execute-command "create table foo (bar integer)")
-	  (clsql:table-exists-p [foo] :owner *test-database-user*))
-	(progn
-	  (clsql:execute-command "drop table foo")
-	  (clsql:table-exists-p [foo] :owner *test-database-user*))))
-  nil t nil)
 
 
 ;; compare min, max and average hieghts in inches (they're quite short
@@ -662,8 +648,6 @@
 			  :from [employee] :where [= [emplid] 1])))))
   (("Yuri" "Gagarin" "gagarin@soviet.org"))
   (("Vladimir" "Lenin" "lenin@soviet.org")))
-
-
 
 ;; starts a transaction deletes a record and then rolls back the deletion
 (deftest :fdml/transaction/1

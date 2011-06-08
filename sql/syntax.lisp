@@ -1,8 +1,6 @@
 ;;;; -*- Mode: LISP; Syntax: ANSI-Common-Lisp; Base: 10 -*-
 ;;;; *************************************************************************
 ;;;;
-;;;; $Id$
-;;;;
 ;;;; CLSQL square bracket symbolic query syntax. Functions for
 ;;;; enabling and disabling the syntax and for building SQL
 ;;;; expressions using the syntax.
@@ -65,6 +63,15 @@ state such that RESTORE-SQL-READER-SYNTAX-STATE will re-establish
 the current syntax state."
   '(eval-when (:compile-toplevel :load-toplevel :execute)
     (%enable-sql-reader-syntax)))
+
+(defmacro file-enable-sql-reader-syntax ()
+  "Turns on the SQL reader syntax for the rest of the file.
+The CL spec says that when finished loading a file the original
+*readtable* is restored.  clhs COMPILE-FILE"
+  '(eval-when (:compile-toplevel :load-toplevel :execute)
+    (setf *readtable* (copy-readtable))
+    (set-macro-character *sql-macro-open-char* #'sql-reader-open)
+    (set-macro-character *sql-macro-close-char* (get-macro-character #\)))))
 
 (defun %enable-sql-reader-syntax ()
   (unless *original-readtable*

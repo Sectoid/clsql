@@ -1,17 +1,16 @@
 ;;;; -*- Mode: LISP; Syntax: ANSI-Common-Lisp; Base: 10 -*-
-;;;; ======================================================================
-;;;; File:    test-syntax.lisp
-;;;; Author:  Marcus Pearce <m.t.pearce@city.ac.uk>
-;;;; Created: 30/03/2004
-;;;; Updated: $Id$
-;;;; ======================================================================
+;;;; *************************************************************************
+;;;; FILE IDENTIFICATION
 ;;;;
-;;;; Description ==========================================================
-;;;; ======================================================================
+;;;; Name:     clsql.asd
+;;;; Purpose:  Tests for the CLSQL Symbolic SQL syntax.
+;;;; Authors:  Marcus Pearce and Kevin M. Rosenberg
+;;;; Created:  March 2004
 ;;;;
-;;;; Tests for the CLSQL Symbolic SQL syntax.
-;;;;
-;;;; ======================================================================
+;;;; CLSQL users are granted the rights to distribute and use this software
+;;;; as governed by the terms of the Lisp Lesser GNU Public License
+;;;; (http://opensource.franz.com/preamble.html), also known as the LLGPL.
+;;;; *************************************************************************
 
 (in-package #:clsql-tests)
 
@@ -409,5 +408,21 @@
   "(BETWEEN(THISTIME.BAR,(HIP * HOP),42) AND (THISTIME.BAZ LIKE 'THISTIME') AND BETWEEN(NEXTTIME.BAR,(HIP * HOP),43) AND (NEXTTIME.BAZ LIKE 'NEXTTIME') AND BETWEEN(SOMETIME.BAR,(HIP * HOP),44) AND (SOMETIME.BAZ LIKE 'SOMETIME') AND BETWEEN(NEVER.BAR,(HIP * HOP),45) AND (NEVER.BAZ LIKE 'NEVER'))")
 
 ))
+
+(defun test-output-sql/sql-ident-table ()
+  (let ((tests `((,(make-instance 'sql-ident-table :name :foo) "FOO")
+		 (,(make-instance 'sql-ident-table :name :foo-bar) "FOO_BAR")
+		 (,(make-instance 'sql-ident-table :name "foo") "\"foo\"")
+		 (,(make-instance 'sql-ident-table :name '|foo bar|) "\"foo bar\"")
+		 (,(make-instance 'sql-ident-table :name :foo :table-alias :bar) "FOO BAR" )
+		 (,(make-instance 'sql-ident-table :name :foo_bar :table-alias :bar-bast) "FOO_BAR BAR_BAST")
+		 (,(make-instance 'sql-ident-table :name "foo" :table-alias "Bar") "\"foo\" \"Bar\"")
+		 (,(make-instance 'sql-ident-table :name '|foo bar| :table-alias :bast) "\"foo bar\" BAST"))))
+    (loop for (test expected-result) in tests
+	  for test-out = (with-output-to-string (*sql-stream*) (output-sql test nil))
+	  do (assert (string-equal test-out expected-result)
+		     (test test-out expected-result)
+		     "Test:~s didnt match ~S"
+		     test-out expected-result))))
 
 #.(clsql:restore-sql-reader-syntax-state)

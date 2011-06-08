@@ -3,11 +3,9 @@
 ;;;; FILE IDENTIFICATION
 ;;;;
 ;;;; Name:     clsql.asd
-;;;; Purpose:  System definition for CLSQL-CLASSIC
+;;;; Purpose:  ASDF System definition for CLSQL
 ;;;; Authors:  Marcus Pearce and Kevin M. Rosenberg
 ;;;; Created:  March 2004
-;;;;
-;;;; $Id$
 ;;;;
 ;;;; CLSQL users are granted the rights to distribute and use this software
 ;;;; as governed by the terms of the Lisp Lesser GNU Public License
@@ -18,14 +16,15 @@
 (defpackage #:clsql-system (:use #:asdf #:cl))
 (in-package #:clsql-system)
 
-#+clisp
-(progn
-  (asdf:operate 'asdf:load-op 'cffi)
-  (asdf:operate 'asdf:load-op 'cffi-uffi-compat)
-  (asdf:defsystem uffi :depends-on (cffi-uffi-compat)))
+#+(and clisp (not :clsql-cffi))
+(asdf:operate 'asdf:load-op 'clsql-cffi)
 
 ;; need to load uffi for below perform :after method
 (eval-when (:compile-toplevel :load-toplevel :execute)
+  #+:clsql-cffi
+  (unless (find-package 'cffi-uffi-compat)
+    (asdf:operate 'asdf:load-op 'cffi-uffi-compat))
+  #-:clsql-cffi
   (unless (find-package 'uffi)
     (asdf:operate 'asdf:load-op 'uffi)))
 
@@ -36,8 +35,8 @@
     :licence "Lessor Lisp General Public License"
     :description "Common Lisp SQL Interface library"
     :long-description "A Common Lisp interface to SQL RDBMS based on
-the Xanalys CommonSQL interface for Lispworks. It depends on the
-low-level database interfaces as well as a functional and an object
+the Xanalys CommonSQL interface for Lispworks. It provides low-level
+database interfaces as well as a functional and an object
 oriented interface."
     :components
     ((:module sql

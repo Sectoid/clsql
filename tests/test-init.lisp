@@ -26,6 +26,8 @@
 (defvar *rt-oodml*)
 (defvar *rt-syntax*)
 (defvar *rt-time*)
+;; Below must be set as nil since test-i18n.lisp is not loaded on all platforms.
+(defvar *rt-i18n* nil)
 
 (defvar *test-database-type* nil)
 (defvar *test-database-underlying-type* nil)
@@ -35,7 +37,7 @@
 (defvar *test-start-utime* nil)
 (defvar *test-connection-spec* nil)
 (defvar *test-connection-db-type* nil)
-
+(defvar *test-report-width* 80 "Width of test report in ems.")
 
 
 (defun test-connect-to-database (db-type spec)
@@ -61,7 +63,16 @@
   (setf *test-database-underlying-type*
         (clsql-sys:database-underlying-type *default-database*))
 
+  ;; If Postgres, turn off notices to console
+  (when (eql db-type :postgresql)
+    (clsql:execute-command "SET client_min_messages = WARNING"))
+
   *default-database*)
+
+(defun default-suites ()
+  "The default list of tests to run."
+  (append *rt-internal* *rt-connection* *rt-basic* *rt-fddl* *rt-fdml*
+	  *rt-ooddl* *rt-oodml* *rt-syntax* *rt-time* *rt-i18n*))
 
 
 (defvar *error-count* 0)
@@ -85,7 +96,8 @@
   (run-function-append-report-file 'run-tests report-file))
 
 
-(defun run-tests (&key (report-stream *standard-output*) (sexp-report-stream nil))
+(defun run-tests (&key (report-stream *standard-output*) (sexp-report-stream nil)
+		  (suites (default-suites)))
   ;; clear SQL-OUTPUT cache
   (setq clsql-sys::*output-hash* (make-hash-table :test #'equal))
   (let ((specs (read-specs))
@@ -101,7 +113,7 @@
       (dolist (spec (db-type-spec db-type specs))
         (let ((*test-connection-spec* spec)
               (*test-connection-db-type* db-type))
-          (do-tests-for-backend db-type spec)))))
+          (do-tests-for-backend db-type spec :suites suites)))))
   (zerop *error-count*))
 
 (defun load-necessary-systems (specs)
@@ -135,23 +147,22 @@
               "")
           ))
 
-(defun do-tests-for-backend (db-type spec)
+(defun do-tests-for-backend (db-type spec &key
+			     (suites (default-suites)) )
   (test-connect-to-database db-type spec)
-
   (unwind-protect
        (multiple-value-bind (test-forms skip-tests)
-           (compute-tests-for-backend db-type *test-database-underlying-type*)
+           (compute-tests-for-backend db-type *test-database-underlying-type* :suites suites)
 
            (write-report-banner "Test Suite" db-type *report-stream*
 				(database-name-from-spec spec db-type))
-
-;           (test-initialise-database)
 
            (regression-test:rem-all-tests)
            (dolist (test-form test-forms)
              (eval test-form))
 
-           (let ((remaining (regression-test:do-tests *report-stream*)))
+           (let* ((cl:*print-right-margin* *test-report-width*)
+                  (remaining (regression-test:do-tests *report-stream*)))
              (when (regression-test:pending-tests)
                (incf *error-count* (length remaining))))
 
@@ -169,20 +180,43 @@
 
            (format *report-stream* "~&Tests skipped:")
            (if skip-tests
-               (dolist (skipped skip-tests)
-                 (format *report-stream*
-                         "~&   ~30A ~A~%" (car skipped) (cdr skipped)))
+               (let ((max-test-name (length (symbol-name (caar skip-tests)))))
+                 (dolist (skipped (cdr skip-tests))
+                   (let ((len (length (symbol-name (car skipped)))))
+                     (when (> len max-test-name)
+                       (setq max-test-name len))))
+                 (let ((fmt (format nil "~~&  ~~~DA ~~A~~%" max-test-name)))
+                   (dolist (skipped skip-tests)
+                     ;; word-wrap the reason string field
+                     (let* ((test (car skipped))
+                            (reason (cdr skipped))
+                            (rlen (length reason))
+                            (rwidth (max 20 (- (or *test-report-width* 80) max-test-name 3)))
+                            (rwords (clsql-sys::delimited-string-to-list reason #\space t))
+                            (rformat (format nil "~~{~~<~%~~1,~D:;~~A~~> ~~}" rwidth))
+                            (rwrapped (format nil rformat rwords))
+                            (rlines (clsql-sys::delimited-string-to-list rwrapped #\Newline t)))
+                       (dolist (rline rlines)
+                         (format *report-stream* fmt (if test
+                                                         (prog1
+                                                             test
+                                                           (setq test nil))
+                                                         "")
+                                 rline))))))
                (format *report-stream* " None~%")))
     (disconnect)))
 
 
-(defun compute-tests-for-backend (db-type db-underlying-type)
+(defun compute-tests-for-backend (db-type db-underlying-type
+				  &key (suites (default-suites)))
   (let ((test-forms '())
         (skip-tests '()))
-    (dolist (test-form (append *rt-internal* *rt-connection* *rt-basic* *rt-fddl* *rt-fdml*
-                               *rt-ooddl* *rt-oodml* *rt-syntax*))
+    (dolist (test-form (if (listp suites) suites (list suites)))
       (let ((test (second test-form)))
         (cond
+	  ((and (not (eql db-underlying-type :mysql))
+		(clsql-sys:in test :connection/query-command))
+	   (push (cons test "known to work only in MySQL as yet.") skip-tests))
           ((and (null (clsql-sys:db-type-has-views? db-underlying-type))
                 (clsql-sys:in test :fddl/view/1 :fddl/view/2 :fddl/view/3 :fddl/view/4))
            (push (cons test "views not supported.") skip-tests))
@@ -215,7 +249,7 @@
            (push (cons test "bigint not supported.") skip-tests))
           ((and (eql *test-database-underlying-type* :mysql)
                 (clsql-sys:in test :fdml/select/26))
-           (push (cons test "string table aliases not supported on all mysql versions.") skip-tests))
+           (push (cons test "string table aliases not supported on all MySQL versions.") skip-tests))
           ((and (eql *test-database-underlying-type* :mysql)
                 (clsql-sys:in test :fdml/select/22 :fdml/query/5
                                 :fdml/query/7 :fdml/query/8))
@@ -260,16 +294,32 @@
 		(clsql-sys:in test :oodml/select/12 :oodml/select/13 :oodml/select/14
 			      :oodml/select/15 :oodml/select/16 :oodml/select/17
 			      :oodml/select/18 :oodml/select/19 :oodml/select/20
-			      :oodml/select/21 :oodml/select/22
+			      :oodml/select/21 :oodml/select/22 :oodml/select/23
 			      :oodml/update-records/4 :oodml/update-records/4-slots
 			      :oodml/update-records/5 :oodml/update-records/5-slots
 			      :oodml/update-records/6 :oodml/update-records/7
 			      :oodml/update-records/8 :oodml/update-records/9
-			      :oodml/update-records/9-slots :oodml/update-instance/3
+			      :oodml/update-records/9-slots :oodml/update-records/10
+			      :oodml/update-records/11 :oodml/update-instance/3
 			      :oodml/update-instance/4 :oodml/update-instance/5
 			      :oodml/update-instance/6 :oodml/update-instance/7
 			      :oodml/db-auto-sync/3 :oodml/db-auto-sync/4))
 	   (push (cons test ":auto-increment not supported.") skip-tests))
+         ((and (not (member *test-database-underlying-type*
+			    '(:postgresql :postgresql-socket)))
+               (clsql-sys:in test
+                             :time/pg/fdml/usec :time/pg/oodml/no-usec :time/pg/oodml/usec))
+          (push (cons test "Postgres specific test.")
+                skip-tests))
+         ((and (member *test-database-underlying-type* '(:mysql))
+               (clsql-sys:in test :time/cross-platform/msec
+			     :time/cross-platform/usec/no-tz :time/cross-platform/usec/tz))
+          (push (cons test "MySQL doesn't support fractional seconds on timestamp columns (http://forge.mysql.com/worklog/task.php?id=946).")
+                skip-tests))
+	  ((and (member *test-database-underlying-type* '(:mssql))
+               (clsql-sys:in test :time/cross-platform/usec/no-tz :time/cross-platform/usec/tz))
+          (push (cons test "MSSQL doesn't support micro-seconds on datetime columns.")
+                skip-tests))
           (t
            (push test-form test-forms)))))
       (values (nreverse test-forms) (nreverse skip-tests))))

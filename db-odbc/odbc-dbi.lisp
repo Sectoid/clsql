@@ -7,8 +7,6 @@
 ;;;; Author:  Kevin M. Rosenberg
 ;;;; Create:  April 2004
 ;;;;
-;;;; $Id$
-;;;;
 ;;;; This file, part of CLSQL, is Copyright (c) 2002 by Kevin M. Rosenberg
 ;;;;
 ;;;; CLSQL users are granted the rights to distribute and use this software
@@ -461,6 +459,7 @@ This makes the functions db-execute-command and db-query thread safe."
           (if (eq (aref column-sql-types i) odbc::$SQL_BIGINT)
               :number
             (case (aref column-c-types i)
+              (#.odbc::$SQL_BIT :short)
               (#.odbc::$SQL_C_SLONG :int)
               (#.odbc::$SQL_C_DOUBLE :double)
               (#.odbc::$SQL_C_FLOAT :float)
@@ -575,6 +574,7 @@ This makes the functions db-execute-command and db-query thread safe."
     ;;((#.odbc::$SQL_BINARY #.odbc::$SQL_VARBINARY #.odbc::$SQL_LONGVARBINARY) odbc::$SQL_C_BINARY) ; ??
     (#.odbc::$SQL_TINYINT :short)
     ;;(#.odbc::$SQL_BIT odbc::$SQL_C_BIT) ; ??
+    (#.odbc::$SQL_BIT :short)
     ((#.odbc::$SQL_VARBINARY #.odbc::$SQL_LONGVARBINARY) :binary)
     ))
 

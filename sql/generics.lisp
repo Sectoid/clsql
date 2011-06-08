@@ -4,12 +4,10 @@
 ;;;;
 ;;;; Name:     generics.lisp
 ;;;; Purpose:  Generic function definitions for DB interfaces
-;;;; Author:   Kevin M. Rosenberg based on
+;;;; Author:   Kevin M. Rosenberg
 ;;;; Created:  Apr 2004
 ;;;;
-;;;; $Id$
-;;;;
-;;;; This file, part of CLSQL, is Copyright (c) 2002-2004 by Kevin M. Rosenberg
+;;;; This file, part of CLSQL, is Copyright (c) 2004-2010 by Kevin M. Rosenberg
 ;;;;
 ;;;; CLSQL users are granted the rights to distribute and use this software
 ;;;; as governed by the terms of the Lisp Lesser GNU Public License
@@ -74,7 +72,7 @@ represented by SLOTS are initialised from the values of the
 supplied slots with other attributes having default
 values. Furthermore, OBJECT becomes associated with DATABASE."))
 
-(defgeneric update-records-from-instance (object &key database)
+(defgeneric update-records-from-instance (object &key database this-class)
   (:documentation
    "Using an instance of a View Class, OBJECT, update the table
 that stores its instance data. DATABASE defaults to
@@ -90,7 +88,7 @@ associated with DATABASE."))
 table of the database associated with OBJECT. If OBJECT is not
 yet associated with a database, an error is signalled."))
 
-(defgeneric update-instance-from-records (object &key database)
+(defgeneric update-instance-from-records (object &key database this-class)
   (:documentation
    "Updates the slot values of the View Class instance OBJECT
 using the attribute values of the appropriate table of DATABASE
@@ -141,7 +139,11 @@ DATABASE-NULL-VALUE on the type of the slot."))
   )
 (defgeneric read-sql-value  (val type database db-type)
   )
+(defgeneric database-make-autoincrement-sequence (class slotdef database)
+  )
 
+(defgeneric database-last-auto-increment-id (database table column)
+  )
 
 ;; Generation of SQL strings from lisp expressions
 

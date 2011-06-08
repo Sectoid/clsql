@@ -7,9 +7,7 @@
 ;;;; Author:  Kevin M. Rosenberg
 ;;;; Created: Mar 2002
 ;;;;
-;;;; $Id$
-;;;;
-;;;; This file, part of CLSQL, is Copyright (c) 2002-2004 by Kevin M. Rosenberg
+;;;; This file, part of CLSQL, is Copyright (c) 2002-2010 by Kevin M. Rosenberg
 ;;;;
 ;;;; CLSQL users are granted the rights to distribute and use this software
 ;;;; as governed by the terms of the Lisp Lesser GNU Public License
@@ -201,6 +199,32 @@
 		      results)))))
       ((t t) (t t) (t t) (t t) (t t) (t t) (t t) (t t) (t t) (t t) (t t)))
 
+
+    (deftest :basic/bigtext/1
+	(with-dataset *ds-bigtext*
+	  (let* ((len 7499)
+		 (str (make-string len :initial-element #\a))
+		 (cmd (format nil "INSERT INTO testbigtext (a) VALUES ('~a')" str)))
+	    (execute-command cmd)
+	    (let ((a (first (query "SELECT a from testbigtext"
+				   :flatp t :field-names nil))))
+	      (assert (string= str a) (str a)
+		      "mismatch on a. inserted: ~a returned: ~a" len (length a)))
+	    ))
+      nil)
+    (deftest :basic/bigtext/2
+	(dotimes (n 10)
+	  (with-dataset *ds-bigtext*
+	    (let* ((len (random 7500))
+		   (str (make-string len :initial-element #\a))
+		   (cmd (format nil "INSERT INTO testbigtext (a) VALUES ('~a')" str)))
+	      (execute-command cmd)
+	      (let ((a (first (query "SELECT a from testbigtext"
+				     :flatp t :field-names nil))))
+		(assert (string= str a) (str a)
+			"mismatch on a. inserted: ~a returned: ~a" len (length a)))
+	      )))
+      nil)
     ))
 
 
@@ -256,3 +280,7 @@
 	(if (> diff (* 10 double-float-epsilon))
 	    nil
 	    t))))
+
+(def-dataset *ds-bigtext*
+  (:setup "CREATE TABLE testbigtext(a varchar(7500))")
+  (:cleanup "DROP TABLE testbigtext"))

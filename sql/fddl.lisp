@@ -1,8 +1,6 @@
 ;;;; -*- Mode: LISP; Syntax: ANSI-Common-Lisp; Base: 10 -*-
 ;;;; *************************************************************************
 ;;;;
-;;;; $Id$
-;;;;
 ;;;; The CLSQL Functional Data Definition Language (FDDL)
 ;;;; including functions for schema manipulation. Currently supported
 ;;;; SQL objects include tables, views, indexes, attributes and
@@ -433,7 +431,7 @@ sequences are examined."
 
 (defun set-sequence-position (name position &key (database *default-database*))
   "Explicitly set the the position of the sequence called NAME in
-DATABASE, which defaults to *DEFAULT-DATABSE*, to POSITION which
+DATABASE, which defaults to *DEFAULT-DATABASE*, to POSITION which
 is returned."
   (database-set-sequence-position (database-identifier name database)
                                   position database))

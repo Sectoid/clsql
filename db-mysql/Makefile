@@ -21,7 +21,7 @@ source=$(base).c
 object=$(base).o
 shared_lib=$(base).so
 shared64_lib=$(base)64.so
-
+dylib=$(base).dylib
 
 .PHONY: all
 all: $(shared_lib)
@@ -46,25 +46,29 @@ else
 	cc $(CFLAGS) -KPIC -c $(source) -o $(object)
 	cc -G $(object) $(LDFLAGS) -o $(shared_lib)
   else
-    ifneq ($(OS_DARWIN),0)
-	cc $(CFLAGS) -dynamic -c $(source) -o $(object)
-	ld -bundle /usr/lib/bundle1.o -flat_namespace -undefined suppress -o $(base).dylib $(object)
-	ld -bundle /usr/lib/bundle1.o $(LDFLAGS) -flat_namespace -undefined suppress /usr/lib/libz.dylib -o z.dylib
+    ifneq ($(OS_DARWIN64),0)
+	cc $(CFLAGS) -arch x86_64 -arch i386 -bundle /usr/lib/bundle1.o -flat_namespace -undefined suppress $(source) -o $(dylib)
+	cc -arch x86_64 -arch i386 -bundle /usr/lib/bundle1.o -flat_namespace -undefined suppress /usr/lib/libz.dylib -o z.dylib
     else
-      ifneq ($(OS_CYGWIN),0)
-	gcc $(CFLAGS) -DWIN32 -c $(source) -o $(object)
-	ld -shared -soname=$(base)  $(object) $(LDFLAGS) -o $(shared_lib)
+      ifneq ($(OS_DARWIN),0)
+	cc $(CFLAGS) -arch i386 -bundle /usr/lib/bundle1.o -flat_namespace -undefined suppress $(source) -o $(dylib)
+	cc -arch i386 -bundle /usr/lib/bundle1.o -flat_namespace -undefined suppress /usr/lib/libz.dylib -o z.dylib
       else
-        ifneq ($(OS_LINUX64),0)
-	  gcc $(CFLAGS) -fPIC -c $(source) -o $(object)
-	  ld -shared -soname=$(base) $(object) $(LDFLAGS) -o $(shared64_lib)
-	  rm $(object)
-	  @echo "Ensure that you have multiarch i386 build tools and libraries if you want to build 32-bit library"
-	  -gcc $(CFLAGS32) -fPIC -c $(source) -o $(object)
-	  -ld -shared -soname=$(base) $(object) $(LDFLAGS32) -o $(shared_lib)
+        ifneq ($(OS_CYGWIN),0)
+	  gcc $(CFLAGS) -DWIN32 -c $(source) -o $(object)
+	  ld -shared -soname=$(base)  $(object) $(LDFLAGS) -o $(shared_lib)
         else
-	  gcc $(CFLAGS) -fPIC -c $(source) -o $(object)
-	  ld -shared -soname=$(base) $(object) $(LDFLAGS) -o $(shared_lib)
+          ifneq ($(OS_LINUX64),0)
+	    gcc $(CFLAGS) -fPIC -c $(source) -o $(object)
+	    ld -shared -soname=$(base) $(object) $(LDFLAGS) -o $(shared64_lib)
+	    rm $(object)
+	    @echo "Ensure that you have multiarch i386 build tools and libraries if you want to build 32-bit library"
+	    -gcc $(CFLAGS32) -fPIC -c $(source) -o $(object)
+	    -ld -shared -soname=$(base) $(object) $(LDFLAGS32) -o $(shared_lib)
+          else
+	    gcc $(CFLAGS) -fPIC -c $(source) -o $(object)
+	    ld -shared -soname=$(base) $(object) $(LDFLAGS) -o $(shared_lib)
+          endif
         endif
       endif
     endif
@@ -74,4 +78,4 @@ endif
 
 .PHONY: distclean
 distclean: clean
-	rm -f $(base).dylib $(base).dylib $(base).so $(base).o
+	@rm -f $(dylib) $(shared_lib) $(shared64_lib) $(object) z.dylib

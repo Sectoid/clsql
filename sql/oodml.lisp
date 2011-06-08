@@ -265,6 +265,7 @@
                                          (ordered-class-direct-slots view-class)
                                          (ordered-class-slots view-class))))
                (record-values (mapcar #'slot-value-list slots)))
+
           (cond ((and (not (normalizedp view-class))
                       (not record-values))
                  (error "No settable slots."))
@@ -282,21 +283,36 @@
                    (setf pk (or pk
                                 (slot-value obj (slot-definition-name pk-slot))))))
                 (t
-                 (insert-records :into (sql-expression :table view-class-table)
+		 (insert-records :into (sql-expression :table view-class-table)
                                  :av-pairs record-values
                                  :database database)
-                 (when pk-slot
-                   (if (or (and (listp (view-class-slot-db-constraints pk-slot))
-                                (member :auto-increment (view-class-slot-db-constraints pk-slot)))
-                           (eql (view-class-slot-db-constraints pk-slot) :auto-increment))
-                       (setf pk (or pk
-                                    (car (query "SELECT LAST_INSERT_ID();"
-                                                :flatp t :field-names nil
-                                                :database database))))
-                       (setf pk (or pk
-                                    (slot-value obj (slot-definition-name pk-slot))))))
-                 (when (eql this-class nil)
-                   (setf (slot-value obj 'view-database) database)))))))
+
+		  (when (and pk-slot (not pk))
+		    (setf pk (if (or (member :auto-increment (listify (view-class-slot-db-constraints pk-slot)))
+				     (not (null (view-class-slot-autoincrement-sequence pk-slot))))
+				 (setf (slot-value obj (slot-definition-name pk-slot))
+				       (database-last-auto-increment-id database
+								       view-class-table
+								       pk-slot)))))
+		  (when pk-slot
+		    (setf pk (or pk
+				 (slot-value
+				  obj (slot-definition-name pk-slot)))))
+		  (when (eql this-class nil)
+		    (setf (slot-value obj 'view-database) database)))))))
+    ;; handle slots with defaults
+    (let* ((view-class (or this-class (class-of obj)))
+	   (slots (if (normalizedp view-class)
+		     (ordered-class-direct-slots view-class)
+		     (ordered-class-slots view-class)))) 
+      (dolist (slot slots)
+	(when (and (slot-exists-p slot 'db-constraints)
+		   (listp (view-class-slot-db-constraints slot))
+		   (member :default (view-class-slot-db-constraints slot)))
+	  (unless (and (slot-boundp obj (slot-definition-name slot))
+		       (slot-value obj (slot-definition-name slot)))
+	    (update-slot-from-record obj (slot-definition-name slot))))))
+
     pk))
 
 (defmethod delete-instance-records ((instance standard-db-object))
@@ -332,6 +348,7 @@
                                                      :result-types nil
                                                      :database vd))))
              (when res
+	       (setf (slot-value instance 'view-database) vd)
                (get-slot-values-from-view instance (mapcar #'car sels) (car res))))
             (pres)
             (t nil)))))
@@ -358,6 +375,7 @@
            (res (select att-ref :from  view-table :where view-qual
                                                   :result-types nil)))
       (when res
+	(setf (slot-value instance 'view-database) vd)
         (get-slot-values-from-view instance (list slot-def) (car res))))))
 
 (defmethod update-slot-with-null ((object standard-db-object)
@@ -580,8 +598,12 @@
        (format nil "~F" val))))
 
 (defmethod read-sql-value (val type database db-type)
-  (declare (ignore type database db-type))
-  (read-from-string val))
+  (declare (ignore database db-type))
+  (cond
+    ((null type) val) ;;we have no desired type, just give the value
+    ((typep val type) val) ;;check that it hasn't already been converted.
+    ((typep val 'string) (read-from-string val)) ;;maybe read will just take care of it?
+    (T (error "Unable to read-sql-value ~a as type ~a" val type))))
 
 (defmethod read-sql-value (val (type (eql 'string)) database db-type)
   (declare (ignore database db-type))
@@ -635,10 +657,19 @@
   (declare (ignore database db-type))
   ;; writing 1.0 writes 1, so we we *really* want a float, must do (float ...)
   (etypecase val
-    (string
-     (float (read-from-string val)))
-    (float
-     val)))
+    (string (float (read-from-string val)))
+    (float val)))
+
+(defmethod read-sql-value (val (type (eql 'double-float)) database db-type)
+  (declare (ignore database db-type))
+  ;; writing 1.0 writes 1, so if we *really* want a float, must do (float ...)
+  (etypecase val
+    (string (float
+	     (let ((*read-default-float-format* 'double-float))
+	       (read-from-string val))
+	     1.0d0))
+    (double-float val)
+    (float (coerce val 'double-float))))
 
 (defmethod read-sql-value (val (type (eql 'boolean)) database db-type)
   (declare (ignore database db-type))

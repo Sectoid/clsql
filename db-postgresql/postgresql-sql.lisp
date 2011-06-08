@@ -6,8 +6,6 @@
 ;;;; Purpose:       High-level PostgreSQL interface using UFFI
 ;;;; Date Started:  Feb 2002
 ;;;;
-;;;; $Id$
-;;;;
 ;;;; CLSQL users are granted the rights to distribute and use this software
 ;;;; as governed by the terms of the Lisp Lesser GNU Public License
 ;;;; (http://opensource.franz.com/preamble.html), also known as the LLGPL.
@@ -57,9 +55,9 @@
           (t
            nil)))))
 
-(defun tidy-error-message (message)
+(defun tidy-error-message (message &optional encoding)
   (unless (stringp message)
-    (setq message (uffi:convert-from-foreign-string message)))
+    (setq message (uffi:convert-from-foreign-string message :encoding encoding)))
   (let ((message (string-right-trim '(#\Return #\Newline) message)))
     (cond
       ((< (length message) (length "ERROR:"))
@@ -157,7 +155,7 @@
           (error 'sql-database-data-error
                  :database database
                  :expression query-expression
-                 :message (tidy-error-message (PQerrorMessage conn-ptr))))
+                 :message (tidy-error-message (PQerrorMessage conn-ptr) (encoding database))))
         (unwind-protect
             (case (PQresultStatus result)
               ;; User gave a command rather than a query
@@ -178,7 +176,8 @@
                                         (if (zerop (PQgetisnull result tuple-index i))
                                             (convert-raw-field
                                              (PQgetvalue result tuple-index i)
-                                             result-types i)
+                                             (nth i result-types)
+                                             :encoding (encoding database))
                                           nil)))))
                    (if field-names
                        (values res (result-field-names num-fields result))
@@ -189,7 +188,8 @@
                       :expression query-expression
                       :error-id (PQresultErrorField result +PG-DIAG-SQLSTATE+)
                       :message (tidy-error-message
-                                (PQresultErrorMessage result)))))
+                                (PQresultErrorMessage result)
+                                (encoding database)))))
           (PQclear result))))))
 
 (defun result-field-names (num-fields result)
@@ -209,7 +209,8 @@
           (error 'sql-database-data-error
                  :database database
                  :expression sql-expression
-                 :message (tidy-error-message (PQerrorMessage conn-ptr))))
+                 :message (tidy-error-message (PQerrorMessage conn-ptr)
+                                              (encoding database))))
         (unwind-protect
             (case (PQresultStatus result)
               (#.pgsql-exec-status-type#command-ok
@@ -224,7 +225,8 @@
                       :expression sql-expression
                       :error-id (PQresultErrorField result +PG-DIAG-SQLSTATE+)
                       :message (tidy-error-message
-                                (PQresultErrorMessage result)))))
+                                (PQresultErrorMessage result)
+                                (encoding database)))))
           (PQclear result))))))
 
 (defstruct postgresql-result-set
@@ -246,7 +248,8 @@
           (error 'sql-database-data-error
                  :database database
                  :expression query-expression
-                 :message (tidy-error-message (PQerrorMessage conn-ptr))))
+                 :message (tidy-error-message (PQerrorMessage conn-ptr)
+                                              (encoding database))))
         (case (PQresultStatus result)
           ((#.pgsql-exec-status-type#empty-query
             #.pgsql-exec-status-type#tuples-ok)
@@ -271,7 +274,8 @@
                       :expression query-expression
                       :error-id (PQresultErrorField result +PG-DIAG-SQLSTATE+)
                       :message (tidy-error-message
-                                (PQresultErrorMessage result)))
+                                (PQresultErrorMessage result)
+                                (encoding database)))
              (PQclear result))))))))
 
 (defmethod database-dump-result-set (result-set (database postgresql-database))
@@ -296,7 +300,8 @@
               (if (zerop (PQgetisnull result tuple-index i))
                   (convert-raw-field
                    (PQgetvalue result tuple-index i)
-                   types i)
+                   (nth i types)
+                   :encoding (encoding database))
                 nil))
           finally
             (incf (postgresql-result-set-tuple-index result-set))
@@ -366,7 +371,8 @@
                            length :unsigned t))
              (when (= (lo-read ptr fd buffer length) length)
                (setf result (uffi:convert-from-foreign-string
-                             buffer :length length :null-terminated-p nil))))))
+                             buffer :length length :null-terminated-p nil
+                             :encoding (encoding database)))))))
       (progn
         (when buffer (uffi:free-foreign-object buffer))
         (when (and fd (>= fd 0)) (lo-close ptr fd))

@@ -1,4 +1,5 @@
-##############################################################################
+#!/usr/bin/make
+###############################################################################
 # FILE IDENTIFICATION
 # 
 #  Name:         Makefile
@@ -6,14 +7,12 @@
 #  Programer:    Kevin M. Rosenberg
 #  Date Started: Mar 2002
 #
-#  CVS Id:   $Id$
-#
-# This file, part of CLSQL, is Copyright (c) 2002-2003 by Kevin M. Rosenberg
+# This file, part of CLSQL, is Copyright (c) 2002-2010 by Kevin M. Rosenberg
 #
 # CLSQL users are granted the rights to distribute and use this software
 # as governed by the terms of the Lisp Lesser GNU Public License
 # (http://opensource.franz.com/preamble.html), also known as the LLGPL.
-##############################################################################
+###############################################################################
 
 DOCFILE_BASE_DEFAULT:=clsql
 DOCFILE_EXT_DEFAULT:=xml
@@ -27,6 +26,7 @@ SUSE91=$(shell expr "`cat /etc/issue 2> /dev/null`" : '.*SuSE Linux 9.1.*')
 REDHAT=$(shell expr "`cat /etc/issue 2> /dev/null`" : '.*Red Hat.*')
 MANDRAKE=$(shell expr "`cat /etc/issue 2> /dev/null`" : '.*Mandrake.*')
 DARWIN=$(shell expr "`uname -a`" : '.*Darwin.*')
+UBUNTU=$(shell expr "`cat /etc/issue 2> /dev/null`" : '.*Ubuntu.*')
 
 
 ifneq (${DEBIAN},0)
@@ -46,6 +46,10 @@ else
 	else   
           ifneq (${DARWIN},0)
             OS=darwin
+	  else
+	    ifneq (${UBUNTU},0)
+		OS:=debian
+	    endif
 	  endif 
         endif
       endif

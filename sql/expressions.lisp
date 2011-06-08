@@ -1,8 +1,6 @@
 ;;;; -*- Mode: LISP; Syntax: ANSI-Common-Lisp; Base: 10 -*-
 ;;;; *************************************************************************
 ;;;;
-;;;; $Id$
-;;;;
 ;;;; Classes defining SQL expressions and methods for formatting the
 ;;;; appropriate SQL commands.
 ;;;;
@@ -194,15 +192,25 @@
     sql
     `(make-instance 'sql-ident-table :name ',name :table-alias ',alias)))
 
+(defun special-char-p (s)
+  "Check if a string has any special characters"
+  (loop for char across s
+       thereis (find char '(#\space #\, #\. #\! #\@ #\# #\$ #\%
+                                 #\^ #\& #\* #\| #\( #\) #\- #\+))))
+
 (defmethod output-sql ((expr sql-ident-table) database)
   (with-slots (name alias) expr
-    (etypecase name
-      (string
-       (format *sql-stream* "~s" (sql-escape name)))
-      (symbol
-       (write-string (sql-escape name) *sql-stream*)))
-    (when alias
-      (format *sql-stream* " ~s" alias)))
+    (flet ((p (s) ;; the etypecase is in sql-escape too
+	     (let ((sym? (symbolp s))
+		   (s (sql-escape s)))
+	       (format *sql-stream*
+		       (if (and sym? (not (special-char-p s)))
+			   "~a" "~s")
+		       s))))
+      (p name)
+      (when alias
+	(princ #\space *sql-stream*)
+	(p alias))))
   t)
 
 (defmethod output-sql-hash-key ((expr sql-ident-table) database)
@@ -982,6 +990,7 @@ uninclusive, and the args from that keyword to the end."
    (cons (symbol-name-default-case "UNSIGNED") "UNSIGNED")
    (cons (symbol-name-default-case "ZEROFILL") "ZEROFILL")
    (cons (symbol-name-default-case "AUTO-INCREMENT") "AUTO_INCREMENT")
+   (cons (symbol-name-default-case "DEFAULT") "DEFAULT")
    (cons (symbol-name-default-case "UNIQUE") "UNIQUE")))
 
 (defmethod database-constraint-statement (constraint-list database)
@@ -1001,6 +1010,9 @@ uninclusive, and the args from that keyword to the end."
                        :message (format nil "unsupported column constraint '~A'"
                                         constraint))
                 (setq string (concatenate 'string string (cdr output))))
+	    (when (equal (symbol-name (car constraint)) "DEFAULT")
+	      (setq constraint (cdr constraint))
+	      (setq string (concatenate 'string string " " (car constraint))))
             (if (< 1 (length constraint))
                 (setq string (concatenate 'string string " "))))))))
 

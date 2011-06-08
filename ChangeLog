@@ -1,3 +1,184 @@
+2011-04-21  Kevin Rosenberg <kevin@rosenberg.net>
+	* sql/generics.lisp: Add defgeneric for new
+	database-last-auto-increment-id
+
+2011-04-01  Kevin Rosenberg <kevin@rosenberg.net>
+	* Version 5.3.2
+	* db-mysql/mysql-client-info.lisp: Add recognition of
+	version 6 of MySQL client library.
+	* sql/metaclass.lisp: Fix the fix in the reader conditional
+
+2011-03-30  Kevin Rosenberg <kevin@rosenberg.net>
+	* Version 5.3.1
+	* sql/metaclasses.lisp: Fix previous patch to work
+	on non-SBCL systems
+
+2011-03-29  Kevin Rosenberg <kevin@rosenberg.net>
+	* Version 5.3.0
+	* sql/metaclasses.lisp: Apply one-line patch to fix
+	for newer SBCL (thanks to Nikodemus Siivola)
+	* many_files: Applied multiple patches from Holger Schauer
+	to improve autoincrement capability.
+
+2010-10-24  Kevin Rosenberg <kevin@rosenberg.net>
+	* Version 5.2.0
+	* db-odbc/odbc-api.lisp: Change from SBCL-specific
+	to UFFI version of octets-to-strings. Reported by
+	Daniel Brunner <daniel@dbrunner.de>
+	* sql/oodml.lisp: Apply patch from Rupert Swarbrick
+	<rswarbrick@gmail.com>: Fix behaviour with auto-inc
+	primary keys.
+	* sql/expressions.lisp, tests/test-syntax.lisp: Apply
+	patch from Russ Tyndall	to quote identifiers with space
+	or special character.
+
+2010-09-20  Kevin Rosenberg <kevin@rosenberg.net>
+	* Version 5.1.4
+	* sql/{pool,database}.lisp: Pass encoding argument to
+	connections made from pool and with reconnect.
+
+2010-08-16  Kevin Rosenberg <kevin@rosenberg.net>
+	* Version 5.1.3
+	* db-odbc/odbc-{api,dbi}.lisp: Commit patch from
+	Memet Bilgin to fix issue with unicode and ODBC.
+
+2010-08-16  Kevin Rosenberg <kevin@rosenberg.net>
+	* Version 5.1.2
+	* uffi/clsql-uffi.lisp: Commit patch from JT Klein fixing
+	invocation of uffi:convert-from-foreign-string macro. When
+	time allows, I'll investigate changing UFFI's macro to
+	a function call and then revert this patch.
+
+2010-06-15  Kevin Rosenberg <kevin@rosenberg.net>
+	* Version 5.1.1
+	* clsql-{uffi,mysql}.asd: Modify operation-done-p functions
+	to guard against change introduced in new ASDF traversing.
+
+2010-04-20  Kevin Rosenberg <kevin@rosenberg.net>
+	* Version 5.1.0 [DEPENDENCY UPGRADE: UFFI 2.x needed]
+	* clsql-uffi.asd: Depend on UFFI version >= 2.0
+	to support foreign encoding of strings.
+
+2010-04-16  Kevin Rosenberg <kevin@rosenberg.net>
+	* Version 5.0.6
+	* db-postgresql.lisp, sql/fddl.lisp: Fix typos [Thanks to
+	Walter C. Pelissero]
+	* sql/metaclasses.lisp: Work around type-check-function being set
+	during defclass expansion in SBCL [Thanks to Walter C. Pelissero]
+	* uffi/clsql-uffi.lisp: In call to uffi:convert-from-foreign-string,
+	Set null-terminated-p to T when length not specified.
+	[Thanks to Walter C. Pelissero]
+
+2010-03-21  Kevin Rosenberg <kevin@rosenberg.net>
+	* Version 5.0.5
+	* sql/fdml.lisp: Fix DO-QUERY to actually return the last value of
+	the body.
+
+2010-03-02  Nathan Bird  <nathan@acceleration.net>
+	* doc/: Added a README on how to build doc; now builds on Ubuntu.
+	* sql/oodml.lisp: READ-SQL-VALUE now has explicit method for
+	handling double-floats and the default method will no longer
+	attempt to convert values that have already been converted.
+	* sql/syntax.lisp: Introduce file-enable-sql-reader-syntax which
+	enables the syntax for the scope of the file without trying to
+	keep track of the current syntax state.
+	* sql/pool.lisp: Introduce
+	clsql-sys:*db-pool-max-free-connections* which is a heuristic
+	threshold for when to disconnect a connection rather than
+	returning it to the pool.
+	* sql/pool.lisp: Check connections for validity before returning
+	to the user.
+
+2010-03-01  Kevin Rosenberg <kevin@rosenberg.net>
+	* db-mysql/mysql-api.lisp: Remove spurious enumeration
+
+2010-02-16  Kevin Rosenberg <kevin@rosenberg.net>
+	* Version 5.0.4
+	* db-mysql/mysql-api.lisp: Fix mysql_options UFFI parameter list
+	* doc/ref-connect.xml: Document the MySQL options parameter as
+	part of	the connection-spec.
+
+2010-02-15  Kevin Rosenberg <kevin@rosenberg.net>
+	* db-mysql/mysql-{api,sql}.lisp: Support sending options
+	to MySQL using mysql_options, which occurs between the API calls
+	of mysql_init and mysql_real_connect.
+
+2010-02-11  Kevin Rosenberg <kevin@rosenberg.net>
+	* Version 5.0.3
+	* multiple-files: Further internationalization. Change
+	UFFI:CONVERT-RAW-FIELD and UFFI:CONVERT-FROM-FOREIGN-STRINGS
+	invocations to use the foreign character set encoding of the
+	database object. Requires UFFI v.1.8.6
+	* Makefile.common: Fix OS_DARWIN64 setting
+
+2010-02-11  Nathan Bird  <nathan@acceleration.net>
+	* MSSQL: better support for fddl 'date type.
+
+2010-02-11  Kevin Rosenberg <kevin@rosenberg.net>
+	* Makefile.common, uffi/Makefile, db-mysql/Makefile:
+	Better support OS X Snow Leopard by building universal
+	(x86_64,i386) dylib bundles
+
+2010-02-08  Kevin Rosenberg <kevin@rosenberg.net>
+	* Version 5.0.2
+	* sql/database.lisp: Fix missing slot-accessor 
+	(Thanks to Stelian Ionescu)
+	* sql/generics.lisp: Add missing keyword to defgeneric
+	(Thanks to Stelian Ionescu)
+
+2010-02-07  Kevin Rosenberg <kevin@rosenberg.net>
+	* Version 5.0.1
+	* sql/{base-classes,database}.lisp: Add encoding slot for 
+	non-ASCII strings.
+	* db-mysql/mysql-sql.lisp: Use UFFI:FOREIGN-ENCODED-OCTET-COUNT.
+	Requires UFFI version 1.8.2 or above.
+
+2010-02-06  Kevin Rosenberg <kevin@rosenberg.net>
+	* Version 5.0.0: First release of CLSQL to formally and
+	consistently support non-ASCII strings with encoding of external
+	formats for SQL strings. UFFI version 1.8.1 is higher is required.
+
+	This change may introduce some differences in string handling for
+	people who are using non-ASCII encoded characters.  Thus, because
+	of the risk of BACKWARD INCOMPATIBILITY, the major version number
+	was incremented with this release.
+
+2010-02-06  Kevin Rosenberg <kevin@rosenberg.net>
+	* tests/test-i18n.lisp: Bind UFFI:*DEFAULT-EXTERNAL-FORMAT*
+	for testing multibyte encodings.
+	* uffi/clsql-uffi.lisp: Changes for UFFI 1.7.4's new support
+	for encoding foreign strings with a specified external format.
+
+2010-02-06  Kevin Rosenberg <kevin@rosenberg.net>
+	* sql/metaclasses.lisp: If no declared slot type in
+	compute-lisp-type-from-specified-type, then use t as lisp type.
+	Issue noted when testing Clozure CL 1.4.
+
+2010-02-06  Kevin Rosenberg <kevin@rosenberg.net>
+	* tests/test-init.lisp: Turn off the benign console notices for
+	testing on postgres.
+
+2010-02-05  Kevin Rosenberg <kevin@rosenberg.net>
+	* clsql-test.asd, tests/{test-i18n,test-init}.lisp:
+	Load test-i18n.lisp and use its tests as long as 'uffi:no-i18n is
+	not present in cl:*features*. This requires UFFI 1.7.2 or above.
+
+2010-02-05  Kevin Rosenberg <kevin@rosenberg.net>
+	* sql/utils.lisp: Reading #\no-break_space causes an
+	error for non-unicode SBCL. Conditionalize read of
+	#\no-break_space for non-unicode SBCL and 8-bit string
+	Allegro.
+
+2010-02-03  Kevin Rosenberg <kevin@rosenberg.net>
+	* tests/test-init.lisp: Add *test-report-width* variable
+	and word-wrap skipped test reason field.
+
+2010-01-29  Kevin Rosenberg <kevin@rosenberg.net>
+	* Version 4.3.3
+	* clsql-cffi.asd: New file that causes CLSQL to use
+	CFFI-UFFI-COMPAT library rather than UFFI. Perform 'asdf:load-op
+	on CLSQL-CFFI rather than CLSQL system to use CFFI-UFFI-COMPAT.
+
 2010-01-29  Nathan Bird  <nathan@acceleration.net>
 	* tests/*.lisp: A lot more tests and test setup tweaks.
 	* sql/expressions.lisp: output-sql on sql-relational-exp does

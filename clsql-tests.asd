@@ -3,9 +3,8 @@
 ;;;; FILE IDENTIFICATION
 ;;;;
 ;;;; File:     clsql-tests.asd
-;;;; Authors:  Marcus Pearce <m.t.pearce@city.ac.uk> and Kevin Rosenberg 
+;;;; Authors:  Marcus Pearce and Kevin Rosenberg
 ;;;; Created:  30/03/2004
-;;;; Updated:  $Id$
 ;;;;
 ;;;; This file is part of CLSQL.
 ;;;;
@@ -18,6 +17,10 @@
 (defpackage #:clsql-tests-system (:use #:asdf #:cl))
 (in-package #:clsql-tests-system)
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (unless (find-package '#:uffi)
+    (asdf:operate 'asdf:load-op 'uffi)))
+
 (defsystem clsql-tests
     :name "CLSQL Tests"
     :author ""
@@ -26,7 +29,7 @@
     :licence ""
     :description "A regression test suite for CLSQL."
     :depends-on (clsql rt)
-    :components 
+    :components
     ((:module tests
 	      :serial t
 	      :components ((:file "package")
@@ -35,6 +38,7 @@
 			   (:file "datasets")
 			   (:file "ds-employees")
 			   (:file "ds-nodes")
+			   (:file "ds-artists")
 			   (:file "benchmarks")
 			   (:file "test-internal")
 			   (:file "test-basic")
@@ -44,7 +48,9 @@
 			   (:file "test-fdml")
 			   (:file "test-ooddl")
 			   (:file "test-oodml")
-			   (:file "test-syntax")))))
+			   (:file "test-syntax")
+                           ; #-uffi:no-i18n (:file "test-i18n")
+                           ))))
 
 (defmethod perform ((o test-op) (c (eql (find-system 'clsql-tests))))
   (operate 'load-op 'clsql)

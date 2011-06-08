@@ -7,8 +7,6 @@
 ;;;; Authors:  Aurelio Bignoli and Kevin Rosenberg
 ;;;; Created:  Nov 2003
 ;;;;
-;;;; $Id$
-;;;;
 ;;;; This file, part of CLSQL, is Copyright (c) 2003 by Aurelio Bignoli
 ;;;; and Copyright (c) 2003-2004 by Kevin Rosenberg
 ;;;;
@@ -307,10 +305,11 @@
   (null-pointer-p row))
 
 (declaim (inline sqlite-aref))
-(defun sqlite-aref (a n)
+(defun sqlite-aref (a n encoding)
   (declare (type sqlite-row-pointer-type a))
   (convert-from-foreign-string
-   (deref-array (deref-pointer a 'sqlite-row-pointer) '(:array (* :unsigned-char)) n)))
+   (deref-array (deref-pointer a 'sqlite-row-pointer) '(:array (* :unsigned-char)) n)
+   :encoding encoding))
 
 (declaim (inline sqlite-raw-aref))
 (defun sqlite-raw-aref (a n)

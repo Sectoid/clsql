@@ -9,9 +9,7 @@
 ;;;;                onShoreD to support UncommonSQL front-end
 ;;;; Date Started:  Feb 2002
 ;;;;
-;;;; $Id$
-;;;;
-;;;; This file, part of CLSQL, is Copyright (c) 2002-2004 by Kevin M. Rosenberg
+;;;; This file, part of CLSQL, is Copyright (c) 2002-2010 by Kevin M. Rosenberg
 ;;;; and Copyright (c) 1999-2001 by Pierre R. Mai, and onShoreD
 ;;;;
 ;;;; CLSQL users are granted the rights to distribute and use this software
@@ -168,6 +166,12 @@ if unable to destory."))
 
 (defgeneric database-sequence-last (name database)
   (:documentation "Select the last value in sequence NAME in DATABASE."))
+
+(defgeneric database-last-autoincrement-id (database table column)
+  (:documentation "Many databases have the notion of an auto-increment
+  id; i.e. a sequence implicitly on a table. This function should
+  return that ID." ))
+
 
 (defgeneric database-start-transaction (database)
   (:documentation "Start a transaction in DATABASE.")
@@ -426,6 +430,20 @@ of TYPE_NAME (keyword) PRECISION SCALE NULLABLE.")
     ;; nothing to do by default
     nil)
   (:documentation "Free the resources of a prepared statement."))
+
+(defgeneric database-acquire-from-conn-pool (database)
+  (:documentation "Acquire a database connection from the pool.  This
+is a chance to test the connection for validity before returning it to
+the user. If this function returns NIL or throws an error that
+database connection is considered bad and we make a new one.
+
+Database objects have a chance to specialize, otherwise the default
+method uses the database-underlying-type and tries to do something
+appropriate."))
+
+(defgeneric database-release-to-conn-pool (database)
+  (:documentation "Chance for the database to cleanup before it is
+  returned to the connection pool."))
 
 ;; Checks for closed database
 

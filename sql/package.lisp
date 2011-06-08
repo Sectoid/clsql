@@ -5,8 +5,6 @@
 ;;;; Name:          package.lisp
 ;;;; Purpose:       Package definition for SQL interface
 ;;;;
-;;;; $Id$
-;;;;
 ;;;; This file is part of CLSQL.
 ;;;;
 ;;;; CLSQL users are granted the rights to distribute and use this software
@@ -131,6 +129,7 @@
      #:database-list-sequences
      #:database-sequence-last
      #:database-sequence-exists-p
+     #:database-last-auto-increment-id
      #:database-list-attributes
      #:database-attribute-type
      #:database-type-library-loaded
@@ -138,6 +137,8 @@
      #:database-destroy
      #:database-probe
      #:database-list
+     #:database-acquire-from-conn-pool
+     #:database-release-to-conn-pool
 
      #:db-backend-has-create/destroy-db?
      #:db-type-has-views?
@@ -161,6 +162,7 @@
      #:*loaded-database-types*
      #:reload-database-types
      #:is-database-open
+     #:*db-pool-max-free-connections*
 
      ;; Large objects
      #:database-create-large-object
@@ -191,6 +193,7 @@
      #:database-state
      #:attribute-cache
      #:database-autocommit
+     #:encoding
 
      ;; utils.lisp
      #:without-interrupts
@@ -392,6 +395,7 @@
          #:locally-disable-sql-reader-syntax
          #:locally-enable-sql-reader-syntax
          #:restore-sql-reader-syntax-state
+	 #:file-enable-sql-reader-syntax
 
          ;; SQL operations (operations.lisp)
          #:sql-query

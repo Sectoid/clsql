@@ -6,7 +6,7 @@
 ;;;; Purpose:       High-level MySQL interface using UFFI
 ;;;; Date Started:  Feb 2002
 ;;;;
-;;;; This file, part of CLSQL, is Copyright (c) 2002-2009 by Kevin M. Rosenberg
+;;;; This file, part of CLSQL, is Copyright (c) 2002-2010 by Kevin M. Rosenberg
 ;;;;
 ;;;; CLSQL users are granted the rights to distribute and use this software
 ;;;; as governed by the terms of the Lisp Lesser GNU Public License
@@ -19,12 +19,6 @@
     (:documentation "This is the CLSQL interface to MySQL."))
 
 (in-package #:clsql-mysql)
-
-;; if we have :sb-unicode, UFFI will treat :cstring as a UTF-8 string
-(defun expression-length (query-expression)
-  (length #+sb-unicode (sb-ext:string-to-octets query-expression
-                                                :external-format :utf8)
-          #-sb-unicode query-expression))
 
 ;;; Field conversion functions
 
@@ -102,9 +96,9 @@
 
 (defmethod database-name-from-spec (connection-spec (database-type (eql :mysql)))
   (check-connection-spec connection-spec database-type
-                         (host db user password &optional port))
-  (destructuring-bind (host db user password &optional port) connection-spec
-    (declare (ignore password))
+                         (host db user password &optional port options))
+  (destructuring-bind (host db user password &optional port options) connection-spec
+    (declare (ignore password options))
     (concatenate 'string
                  (etypecase host
                    (null "localhost")
@@ -119,10 +113,57 @@
                      "")
                  "/" db "/" user)))
 
+(defun lookup-option-code (option)
+  (if (assoc option +mysql-option-parameter-map+)
+      (symbol-value (intern
+                     (concatenate 'string (symbol-name-default-case "mysql-option#")
+                                  (symbol-name option))
+                     (symbol-name '#:mysql)))
+      (progn
+        (warn "Unknown mysql option name ~A - ignoring.~%" option)
+        nil)))
+
+(defun set-mysql-options (mysql-ptr options)
+  (flet ((lookup-option-type (option)
+           (cdr (assoc option +mysql-option-parameter-map+))))
+    (dolist (option options)
+      (if (atom option)
+          (let ((option-code (lookup-option-code option)))
+            (when option-code
+              (mysql-options mysql-ptr option-code uffi:+null-cstring-pointer+)))
+          (destructuring-bind (name . value) option
+            (let ((option-code (lookup-option-code name)))
+              (when option-code
+                (case (lookup-option-type name)
+                  (:none
+                   (mysql-options mysql-ptr option-code uffi:+null-cstring-pointer+))
+                  (:char-ptr
+                   (if (stringp value)
+                       (uffi:with-foreign-string (fs value)
+                           (mysql-options mysql-ptr option-code fs))
+                       (warn "Expecting string argument for mysql option ~A, got ~A ~
+- ignoring.~%"
+                             name value)))
+                  (:uint-ptr
+                   (if (integerp value)
+                       (uffi:with-foreign-object (fo :unsigned-int)
+                         (setf (uffi:deref-pointer fo :unsigned-int) value)
+                         (mysql-options mysql-ptr option-code fo))
+                       (warn "Expecting integer argument for mysql option ~A, got ~A ~
+- ignoring.~%"
+                             name value)))
+                  (:boolean-ptr
+                   (uffi:with-foreign-object (fo :byte)
+                     (setf (uffi:deref-pointer fo :byte)
+                           (if (or (zerop value) (null value))
+                               0
+                               1))
+                     (mysql-options mysql-ptr option-code fo)))))))))))
+
 (defmethod database-connect (connection-spec (database-type (eql :mysql)))
   (check-connection-spec connection-spec database-type
-                         (host db user password &optional port))
-  (destructuring-bind (host db user password &optional port) connection-spec
+                         (host db user password &optional port options))
+  (destructuring-bind (host db user password &optional port options) connection-spec
     (let ((mysql-ptr (mysql-init (uffi:make-null-pointer 'mysql-mysql)))
           (socket nil))
       (if (uffi:null-pointer-p mysql-ptr)
@@ -136,6 +177,8 @@
                             (password-native password)
                             (db-native db)
                             (socket-native socket))
+          (when options
+            (set-mysql-options mysql-ptr options))
           (let ((error-occurred nil))
             (unwind-protect
                 (if (uffi:null-pointer-p
@@ -165,7 +208,8 @@
                                            :mysql-ptr mysql-ptr))
                            (cmd "SET SESSION sql_mode='ANSI'"))
                       (uffi:with-cstring (cmd-cs cmd)
-                        (if (zerop (mysql-real-query mysql-ptr cmd-cs (expression-length cmd)))
+                        (if (zerop (mysql-real-query mysql-ptr cmd-cs (uffi:foreign-encoded-octet-count
+                                                                       cmd :encoding (encoding db))))
                             db
                             (progn
                               (warn "Error setting ANSI mode for MySQL.")
@@ -178,65 +222,67 @@
   (setf (database-mysql-ptr database) nil)
   t)
 
-
-(defmethod database-query (query-expression (database mysql-database)
-                           result-types field-names)
-  (declare (optimize (speed 3) (safety 0) (debug 0) (space 0)))
-  (let ((mysql-ptr (database-mysql-ptr database)))
-    (uffi:with-cstring (query-native query-expression)
-      (if (zerop (mysql-real-query mysql-ptr query-native
-                                   (expression-length query-expression)))
-          (let ((res-ptr (mysql-use-result mysql-ptr)))
-            (if res-ptr
-                (unwind-protect
-                     (let ((num-fields (mysql-num-fields res-ptr)))
-                       (declare (fixnum num-fields))
-                       (setq result-types (canonicalize-types
-                                    result-types res-ptr))
-                       (values
-                        (loop for row = (mysql-fetch-row res-ptr)
-                              for lengths = (mysql-fetch-lengths res-ptr)
-                              until (uffi:null-pointer-p row)
-                              collect
-                              (do* ((rlist (make-list num-fields))
-                                    (i 0 (1+ i))
-                                    (pos rlist (cdr pos)))
-                                   ((= i num-fields) rlist)
-                                (declare (fixnum i))
-                                (setf (car pos)
-                                      (convert-raw-field
-                                       (uffi:deref-array row '(:array
-                                                               (* :unsigned-char))
-                                                         i)
-                                       result-types i
-                                       (uffi:deref-array lengths '(:array :unsigned-long)
-                                                         i)))))
-                        (when field-names
-                          (result-field-names res-ptr))))
-                  (mysql-free-result res-ptr))
-                (error 'sql-database-data-error
-                       :database database
-                       :expression query-expression
-                       :error-id (mysql-errno mysql-ptr)
-                       :message (mysql-error-string mysql-ptr))))
-          (error 'sql-database-data-error
-                 :database database
-                 :expression query-expression
-                 :error-id (mysql-errno mysql-ptr)
-                 :message (mysql-error-string mysql-ptr))))))
-
 (defmethod database-execute-command (sql-expression (database mysql-database))
   (uffi:with-cstring (sql-native sql-expression)
     (let ((mysql-ptr (database-mysql-ptr database)))
       (declare (type mysql-mysql-ptr-def mysql-ptr))
       (if (zerop (mysql-real-query mysql-ptr sql-native
-                                   (expression-length sql-expression)))
+                                   (uffi:foreign-encoded-octet-count
+                                    sql-expression :encoding (encoding database))))
           t
         (error 'sql-database-data-error
                :database database
                :expression sql-expression
                :error-id (mysql-errno mysql-ptr)
                :message (mysql-error-string mysql-ptr))))))
+
+
+(defmethod database-query (query-expression (database mysql-database)
+			   result-types field-names)
+  (declare (optimize (speed 3) (safety 0) (debug 0) (space 0)))
+  (let ((mysql-ptr (database-mysql-ptr database)))
+    (declare (type mysql-mysql-ptr-def mysql-ptr))
+    (when (database-execute-command query-expression database)
+      (let ((res-ptr (mysql-use-result mysql-ptr)))
+	(declare (type mysql-mysql-res-ptr-def res-ptr))
+	(if (and res-ptr (not (uffi:null-pointer-p res-ptr)))
+	    (unwind-protect
+		 (let ((num-fields (mysql-num-fields res-ptr)))
+		   (declare (fixnum num-fields))
+		   (setq result-types (canonicalize-types
+				       result-types res-ptr))
+		   (values
+		     (loop for row = (mysql-fetch-row res-ptr)
+			   for lengths = (mysql-fetch-lengths res-ptr)
+			   until (uffi:null-pointer-p row)
+			   collect
+			(do* ((rlist (make-list num-fields))
+			      (i 0 (1+ i))
+			      (pos rlist (cdr pos)))
+			    ((= i num-fields) rlist)
+			  (declare (fixnum i))
+			  (setf (car pos)
+				(convert-raw-field
+				 (uffi:deref-array row '(:array
+							 (* :unsigned-char))
+						   i)
+				 (nth i result-types)
+                                 :length
+				 (uffi:deref-array lengths '(:array :unsigned-long) i)
+                                 :encoding (encoding database)))))
+		     (when field-names
+		       (result-field-names res-ptr))))
+	      (mysql-free-result res-ptr))
+	    (unless (zerop (mysql-errno mysql-ptr))
+	      ;;from http://dev.mysql.com/doc/refman/5.0/en/mysql-field-count.html
+	      ;; if mysql_use_result or mysql_store_result return a null ptr,
+	      ;; we use a mysql_errno check to see if it had a problem or just
+	      ;; was a query without a result. If no error, just return nil.
+	      (error 'sql-database-data-error
+		     :database database
+		     :expression query-expression
+		     :error-id (mysql-errno mysql-ptr)
+		     :message (mysql-error-string mysql-ptr))))))))
 
 
 (defstruct mysql-result-set
@@ -249,40 +295,34 @@
 (defmethod database-query-result-set ((query-expression string)
                                       (database mysql-database)
                                       &key full-set result-types)
-  (uffi:with-cstring (query-native query-expression)
-    (let ((mysql-ptr (database-mysql-ptr database)))
-     (declare (type mysql-mysql-ptr-def mysql-ptr))
-      (if (zerop (mysql-real-query mysql-ptr query-native
-                                   (expression-length query-expression)))
-          (let ((res-ptr (if full-set
-                             (mysql-store-result mysql-ptr)
-                           (mysql-use-result mysql-ptr))))
-            (declare (type mysql-mysql-res-ptr-def res-ptr))
-            (if (not (uffi:null-pointer-p res-ptr))
-                (let* ((num-fields (mysql-num-fields res-ptr))
-                       (result-set (make-mysql-result-set
-                                    :res-ptr res-ptr
-                                    :num-fields num-fields
-                                    :full-set full-set
-                                    :types
-                                    (canonicalize-types
-                                     result-types res-ptr))))
-                  (if full-set
-                      (values result-set
-                              num-fields
-                              (mysql-num-rows res-ptr))
-                      (values result-set
-                              num-fields)))
-                (error 'sql-database-data-error
-                     :database database
-                     :expression query-expression
-                     :error-id (mysql-errno mysql-ptr)
-                     :message (mysql-error-string mysql-ptr))))
-        (error 'sql-database-data-error
-               :database database
-               :expression query-expression
-               :error-id (mysql-errno mysql-ptr)
-               :message (mysql-error-string mysql-ptr))))))
+  (let ((mysql-ptr (database-mysql-ptr database)))
+    (declare (type mysql-mysql-ptr-def mysql-ptr))
+    (when (database-execute-command query-expression database)
+      (let ((res-ptr (if full-set
+			 (mysql-store-result mysql-ptr)
+			 (mysql-use-result mysql-ptr))))
+	(declare (type mysql-mysql-res-ptr-def res-ptr))
+	(if (not (uffi:null-pointer-p res-ptr))
+	    (let* ((num-fields (mysql-num-fields res-ptr))
+		   (result-set (make-mysql-result-set
+				:res-ptr res-ptr
+				:num-fields num-fields
+				:full-set full-set
+				:types
+				(canonicalize-types
+				 result-types res-ptr))))
+	      (if full-set
+		  (values result-set
+			  num-fields
+			  (mysql-num-rows res-ptr))
+		  (values result-set
+			  num-fields)))
+	    (error 'sql-database-data-error
+		   :database database
+		   :expression query-expression
+		   :error-id (mysql-errno mysql-ptr)
+		   :message (mysql-error-string mysql-ptr))))
+      )))
 
 (defmethod database-dump-result-set (result-set (database mysql-database))
   (mysql-free-result (mysql-result-set-res-ptr result-set))
@@ -303,9 +343,10 @@
             (setf (car rest)
                   (convert-raw-field
                    (uffi:deref-array row '(:array (* :unsigned-char)) i)
-                   types
-                   i
-                   (uffi:deref-array lengths '(:array :unsigned-long) i))))
+                   (nth i types)
+                   :length
+                   (uffi:deref-array lengths '(:array :unsigned-long) i)
+                   :encoding (encoding database))))
       list)))
 
 
@@ -446,6 +487,12 @@
                         (%sequence-name-to-table sequence-name))
            database :auto nil))))
 
+(defmethod database-last-auto-increment-id ((database mysql-database) table column)
+  (declare (ignore table column))
+  (car (query "SELECT LAST_INSERT_ID();"
+             :flatp t :field-names nil
+             :database database)))
+
 (defmethod database-create (connection-spec (type (eql :mysql)))
   (destructuring-bind (host name user password) connection-spec
     (let ((database (database-connect (list host "" user password)
@@ -470,7 +517,8 @@
     t))
 
 (defmethod database-list (connection-spec (type (eql :mysql)))
-  (destructuring-bind (host name user password &optional port) connection-spec
+  (destructuring-bind (host name user password &optional port options) connection-spec
+    (declare (ignore options))
     (let ((database (database-connect (list host (or name "mysql")
                                             user password port) type)))
       (unwind-protect
@@ -521,7 +569,8 @@
              :message (mysql-error-string mysql-ptr)))
 
     (uffi:with-cstring (native-query sql-stmt)
-      (unless (zerop (mysql-stmt-prepare stmt native-query (expression-length sql-stmt)))
+      (unless (zerop (mysql-stmt-prepare stmt native-query (uffi:foreign-encoded-octet-count
+                                                            sql-stmt :encoding (encoding database))))
         (mysql-stmt-close stmt)
         (error 'sql-database-error
                :error-id (mysql-errno mysql-ptr)
@@ -693,21 +742,21 @@
                    ((#.mysql-field-types#var-string #.mysql-field-types#string
                      #.mysql-field-types#tiny-blob #.mysql-field-types#blob
                      #.mysql-field-types#medium-blob #.mysql-field-types#long-blob)
-                    (uffi:convert-from-foreign-string buffer))
-                    (#.mysql-field-types#tiny
-                     (uffi:ensure-char-integer
-                      (uffi:deref-pointer buffer :byte)))
-                    (#.mysql-field-types#short
-                     (uffi:deref-pointer buffer :short))
-                    (#.mysql-field-types#long
-                     (uffi:deref-pointer buffer :int))
-                    #+64bit
-                    (#.mysql-field-types#longlong
+                    (uffi:convert-from-foreign-string buffer :encoding (encoding (database stmt))))
+                   (#.mysql-field-types#tiny
+                    (uffi:ensure-char-integer
+                     (uffi:deref-pointer buffer :byte)))
+                   (#.mysql-field-types#short
+                    (uffi:deref-pointer buffer :short))
+                   (#.mysql-field-types#long
+                    (uffi:deref-pointer buffer :int))
+                   #+64bit
+                   (#.mysql-field-types#longlong
                      (uffi:deref-pointer buffer :long))
-                    (#.mysql-field-types#float
-                     (uffi:deref-pointer buffer :float))
-                    (#.mysql-field-types#double
-                     (uffi:deref-pointer buffer :double))
+                   (#.mysql-field-types#float
+                    (uffi:deref-pointer buffer :float))
+                   (#.mysql-field-types#double
+                    (uffi:deref-pointer buffer :double))
                    ((#.mysql-field-types#time #.mysql-field-types#date
                                               #.mysql-field-types#datetime #.mysql-field-types#timestamp)
                     (let ((year (uffi:get-slot-value buffer 'mysql-time 'mysql::year))
@@ -715,7 +764,7 @@
                           (day (uffi:get-slot-value buffer 'mysql-time 'mysql::day))
                           (hour (uffi:get-slot-value buffer 'mysql-time 'mysql::hour))
                           (minute (uffi:get-slot-value buffer 'mysql-time 'mysql::minute))
-                  (second (uffi:get-slot-value buffer 'mysql-time 'mysql::second)))
+                          (second (uffi:get-slot-value buffer 'mysql-time 'mysql::second)))
                       (db-timestring
                        (make-time :year year :month month :day day :hour hour
                                   :minute minute :second second))))

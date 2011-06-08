@@ -314,7 +314,13 @@ column definition in the database.")
     :accessor specified-type
     :initarg specified-type
     :initform nil
-    :documentation "Internal slot storing the :type specified by user.")))
+    :documentation "Internal slot storing the :type specified by user.")
+   (autoincrement-sequence
+    :accessor view-class-slot-autoincrement-sequence
+    :initarg :autoincrement-sequence
+    :initform nil
+    :documentation "A string naming the (possibly automatically generated) sequence
+for a slot with an :auto-increment constraint.")))
 
 (defparameter *db-info-lambda-list*
   '(&key join-class
@@ -425,7 +431,7 @@ implementations."
             specified-type))))
     (if (and type (not (member :not-null (listify db-constraints))))
         `(or null ,type)
-      type)))
+        (or type t))))
 
 ;; Compute the slot definition for slots in a view-class.  Figures out
 ;; what kind of database value (if any) is stored there, generates and
@@ -453,8 +459,10 @@ implementations."
           (slot-definition-name obj)))
   (apply #'call-next-method obj
          'specified-type type
-         :type (compute-lisp-type-from-specified-type
-                type db-constraints)
+         :type (if (and (eql db-kind :virtual) (null type))
+                   t
+                   (compute-lisp-type-from-specified-type
+                    type db-constraints))
          initargs))
 
 (defmethod compute-effective-slot-definition ((class standard-db-class)
@@ -524,6 +532,14 @@ implementations."
 
          (setf (specified-type esd)
                (delistify-dsd (specified-type dsd)))
+         ;; In older SBCL's the type-check-function is computed at
+         ;; defclass expansion, which is too early for the CLSQL type
+         ;; conversion to take place. This gets rid of it. It's ugly
+         ;; but it's better than nothing -wcp10/4/10.
+         #+(and sbcl #.(cl:if (cl:and (cl:find-package :sb-pcl)
+                                      (cl:find-symbol "%TYPE-CHECK-FUNCTION" :sb-pcl))
+                              '(cl:and) '(cl:or)))
+         (setf (slot-value esd 'sb-pcl::%type-check-function) nil)
 
          )
         ;; all other slots

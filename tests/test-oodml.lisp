@@ -1,7 +1,6 @@
 ;;;; -*- Mode: LISP; Syntax: ANSI-Common-Lisp; Base: 10 -*-
 ;;;; ======================================================================
 ;;;; File:    test-oodml.lisp
-;;;; Author:  Marcus Pearce <m.t.pearce@city.ac.uk>
 ;;;; Created: 01/04/2004
 ;;;;
 ;;;; Tests for the CLSQL Object Oriented Data Definition Language
@@ -212,6 +211,13 @@
 	  (slot-value a 'loc))))
   10 10 "subloc-1" "a subloc")
 
+(deftest :oodml/select/23
+    (with-dataset *ds-artists*
+      (length (clsql:select 'artist :flatp t :caching nil)))
+  0)
+
+
+
 ;; test retrieval is deferred
 (deftest :oodm/retrieval/1
     (with-dataset *ds-employees*
@@ -300,15 +306,16 @@
 ;; tests update-record-from-slot
 (deftest :oodml/update-records/2
     (with-dataset *ds-employees*
+      ;(start-sql-recording :type :both)
       (values
 	(employee-email
 	 (car (clsql:select 'employee
 			    :where [= 1 [slot-value 'employee 'emplid]]
 			    :flatp t
 			    :caching nil)))
-	(progn
-	  (setf (slot-value employee1 'email) "lenin-nospam@soviet.org")
-	  (clsql:update-record-from-slot employee1 'email)
+ 	(progn
+ 	  (setf (slot-value employee1 'email) "lenin-nospam@soviet.org")
+ 	  (clsql:update-record-from-slot employee1 'email)
 	  (employee-email
 	   (car (clsql:select 'employee
 			      :where [= 1 [slot-value 'employee 'emplid]]
@@ -458,7 +465,7 @@
 		 (format nil "~a ~a ~a"
 			 (slot-value node 'setting-id)
 			 (slot-value node 'title)
-			 (slot-value node 'vars)))))
+			 (or (slot-value node 'vars) "NIL")))))
 	(values
 	  (print-fresh-setting)
 	  (let ((node (car (clsql:select 'setting
@@ -511,7 +518,7 @@
 		 (with-slots (node-id setting-id theme-id title vars doc) node
 		   (format nil "~a ~a ~a ~a ~a ~a"
 			   node-id setting-id theme-id
-			   title vars doc)))))
+			   title (or vars "NIL") doc)))))
 	(values
 	  (print-fresh-theme)
 	  (let ((node (car (clsql:select 'setting
@@ -547,6 +554,8 @@
 	       (let ((sl (car (clsql:select 'subloc
 					    :where [= 10 [slot-value 'subloc 'subloc-id]]
 					    :flatp t :caching nil))))
+		 (unless sl
+		   (error "Couldn't find expected sublocation"))
 		 (format nil "~a ~a ~a"
 			 (slot-value sl 'subloc-id)
 			 (slot-value sl 'title)
@@ -569,6 +578,8 @@
 	       (let ((sl (car (clsql:select 'subloc
 					    :where [= 10 [slot-value 'subloc 'subloc-id]]
 					    :flatp t :caching nil))))
+		 (unless sl
+		   (error "In psfl: found no sublocation with id = 10"))
 		 (format nil "~a ~a ~a"
 			 (slot-value sl 'subloc-id)
 			 (slot-value sl 'title)
@@ -578,6 +589,8 @@
 	  (let ((sl (car (clsql:select 'subloc
 				       :where [= 10 [slot-value 'subloc 'subloc-id]]
 				       :flatp t :caching nil))))
+	    (unless sl
+	      (error "Select for modification: Found no sublocation with id = 10"))
 	    (setf (slot-value sl 'title) "Altered subloc title")
 	    (setf (slot-value sl 'loc) "Altered loc")
 	    (clsql:update-record-from-slot sl 'title)
@@ -586,14 +599,48 @@
 	  (let ((sl (car (clsql:select 'subloc
 				       :where [= 10 [slot-value 'subloc 'subloc-id]]
 				       :flatp t :caching nil))))
+	    (unless sl
+	      (error "Select for next modification: Found no sublocation with id = 10"))
 	    (setf (slot-value sl 'title) "subloc-1")
 	    (setf (slot-value sl 'loc) "a subloc")
-	    (clsql:update-record-from-slot sl '(title loc))
+	    (clsql:update-record-from-slots sl '(title loc))
 	    (print-fresh-subloc)))))
   "10 subloc-1 a subloc"
   "10 Altered subloc title Altered loc"
   "10 subloc-1 a subloc")
 
+;; Verify that we can set a float to nil and then read it back
+;; (was failing in Postgresql at somepoint)
+(deftest :oodml/update-records/10
+    (with-dataset *ds-employees*
+      (let ((emp (first (clsql:select 'employee :where [= [emplid] 1] :flatp t))))
+	(setf (height emp) nil)
+	(clsql-sys:update-record-from-slot emp 'height)
+	(values
+	  (clsql:select [height] :from [employee] :where [= [emplid] 1])
+	  (progn
+	    (setf (height emp) 42.0)
+	    (clsql-sys:update-record-from-slot emp 'height)
+	    (clsql:select [height] :from [employee] :where [= [emplid] 1]))
+	  (progn
+	    (setf (height emp) 24.13d0)
+	    (clsql-sys:update-record-from-slot emp 'height)
+	    (clsql:select [height] :from [employee] :where [= [emplid] 1])))))
+  ((nil))
+  ((42.0d0))
+  ((24.13d0)))
+
+(deftest :oodml/update-records/11
+    (with-dataset *ds-artists*
+      (clsql:update-records-from-instance artist1)
+      (list (name artist1) (artist_id artist1)))
+  ("Mogwai" 1))
+
+(deftest :oodml/update-records/12
+    (with-dataset *ds-artists*
+      (clsql:update-records-from-instance artist1)
+      (list (name artist1) (genre artist1)))
+  ("Mogwai" "Unknown"))
 
 ;; tests update-instance-from-records
 (deftest :oodml/update-instance/1
@@ -638,7 +685,7 @@
 	  (format out "~a ~a ~a ~a"
 		  (slot-value theme2 'theme-id)
 		  (slot-value theme2 'title)
-		  (slot-value theme2 'vars)
+		  (or (slot-value theme2 'vars) "NIL")
 		  (slot-value theme2 'doc)))
 	(progn
 	  (clsql:update-records [node] :av-pairs '(([title] "Altered title"))
@@ -950,21 +997,22 @@
       (values
 	(let ((inst (make-instance 'theme
 				   :title "test-theme" :vars "test-vars"
-				   :doc "test-doc")))
+				   :doc "test-doc"))
+              (*print-circle* nil))
 	  (setf (slot-value inst 'title) "alternate-test-theme")
 	  (format nil "~a ~a ~a ~a"
-		  (select [title] :from [node]
-			  :where [= [title] "test-theme"]
-			  :flatp t :field-names nil)
-		  (select [vars] :from [setting]
-			  :where [= [vars] "test-vars"]
-			  :flatp t :field-names nil)
-		  (select [doc] :from [theme]
-			  :where [= [doc] "test-doc"]
-			  :flatp t :field-names nil)
-		  (select [title] :from [node]
-			  :where [= [title] "alternate-test-theme"]
-			  :flatp t :field-names nil)))
+		  (or (select [title] :from [node]
+                              :where [= [title] "test-theme"]
+                              :flatp t :field-names nil) "NIL")
+		  (or (select [vars] :from [setting]
+                              :where [= [vars] "test-vars"]
+                              :flatp t :field-names nil) "NIL")
+		  (or (select [doc] :from [theme]
+                              :where [= [doc] "test-doc"]
+                              :flatp t :field-names nil) "NIL")
+		  (or (select [title] :from [node]
+                              :where [= [title] "alternate-test-theme"]
+                              :flatp t :field-names nil) "NIL")))
 	(let* ((*db-auto-sync* t)
 	       (inst (make-instance 'theme
 				    :title "test-theme" :vars "test-vars"
@@ -972,18 +1020,18 @@
 	  (setf (slot-value inst 'title) "alternate-test-theme")
 	  (prog1
 	      (format nil "~a ~a ~a ~a"
-		      (select [title] :from [node]
-			      :where [= [title] "test-theme"]
-			      :flatp t :field-names nil)
-		      (select [vars] :from [setting]
-			      :where [= [vars] "test-vars"]
-			      :flatp t :field-names nil)
-		      (select [doc] :from [theme]
-			      :where [= [doc] "test-doc"]
-			      :flatp t :field-names nil)
-		      (select [title] :from [node]
-			      :where [= [title] "alternate-test-theme"]
-			      :flatp t :field-names nil))
+		      (or (select [title] :from [node]
+                                  :where [= [title] "test-theme"]
+                                  :flatp t :field-names nil) "NIL")
+		      (or (select [vars] :from [setting]
+                                  :where [= [vars] "test-vars"]
+                                  :flatp t :field-names nil) "NIL")
+		      (or (select [doc] :from [theme]
+                                  :where [= [doc] "test-doc"]
+                                  :flatp t :field-names nil) "NIL")
+		      (or (select [title] :from [node]
+                                  :where [= [title] "alternate-test-theme"]
+                                  :flatp t :field-names nil) "NIL"))
 	    (delete-records :from [node] :where [= [title] "alternate-test-theme"])
 	    (delete-records :from [setting] :where [= [vars] "test-vars"])
 	    (delete-records :from [theme] :where [= [doc] "test-doc"])))))
