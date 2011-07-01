@@ -385,28 +385,10 @@
             :less-than
             :greater-than))))
 
-; now the same for dates
-(eval-when (:compile-toplevel :load-toplevel)
-(defun replace-string (string1 search-string replace-string &key (test #'string=))
-  "Search within string1 for search-string, replace with replace-string, non-destructively."
-  (let ((replace-string-length (length replace-string))
-        (search-string-length  (length search-string)))
-    (labels ((sub-replace-string (current-string position)
-               (let ((found-position (search search-string current-string :test test :start2 position)))
-                 (if (null found-position)
-                     current-string
-                     (sub-replace-string (concats
-                                          (subseq current-string 0 found-position)
-                                          replace-string
-                                          (subseq current-string (+ found-position search-string-length)))
-                                         (+ position replace-string-length))))))
-      (sub-replace-string string1 0))))
-);eval-when
-
 (defmacro wrap-time-for-date (time-func &key (result-func))
-  (let ((date-func (intern (replace-string (symbol-name time-func)
-                                           (symbol-name-default-case "TIME")
-                                           (symbol-name-default-case "DATE")))))
+  (let ((date-func (intern (replace-all (symbol-name time-func)
+                                        (symbol-name-default-case "TIME")
+                                        (symbol-name-default-case "DATE")))))
     `(defun ,date-func (number &rest more-numbers)
       (let ((result (apply #',time-func (mapcar #'date->time (cons number more-numbers)))))
         ,(if result-func
