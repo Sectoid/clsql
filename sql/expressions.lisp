@@ -80,8 +80,7 @@
                 (make-instance '%database-identifier :unescaped (or orig inp) :escaped inp))
                (T (make-instance
                    '%database-identifier :unescaped (or orig inp) :escaped
-                   (concatenate
-                    'string "\"" (replace-all inp "\"" "\\\"") "\""))))))
+                   (concats "\"" (replace-all inp "\"" "\\\"") "\"" ))))))
     (typecase inp
       (string (%escape-identifier inp))
       (%database-identifier inp)
@@ -111,7 +110,7 @@
              (setf i1 (cast i1)
                    i2 (cast i2))
              (if (and i1 i2)
-                 (concatenate 'string (cast i1) "_" (cast i2))
+                 (concats (cast i1) "_" (cast i2))
                  (or i1 i2))))
     (setf res (reduce #'comb ids))
     (database-identifier
@@ -976,7 +975,7 @@ uninclusive, and the args from that keyword to the end."
            +empty-string+)
           ((and (null (position #\' str))
                 (null (position #\\ str)))
-           (concatenate 'string "'" str "'"))
+           (concats "'" str "'"))
           (t
            (let ((buf (make-string (+ (* len 2) 2) :initial-element #\')))
              (declare (simple-string buf))
@@ -1107,12 +1106,12 @@ uninclusive, and the args from that keyword to the end."
                 (error 'sql-user-error
                        :message (format nil "unsupported column constraint '~A'"
                                         constraint))
-                (setq string (concatenate 'string string (cdr output))))
+                (setq string (concats string (cdr output))))
 	    (when (equal (symbol-name (car constraint)) "DEFAULT")
 	      (setq constraint (cdr constraint))
-	      (setq string (concatenate 'string string " " (car constraint))))
+	      (setq string (concats string " " (car constraint))))
             (if (< 1 (length constraint))
-                (setq string (concatenate 'string string " "))))))))
+                (setq string (concats string " "))))))))
 
 (defmethod database-identifier ( name  &optional database find-class-p
                                  &aux cls)
