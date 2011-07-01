@@ -149,7 +149,7 @@ SQL-USER-ERROR is signalled if any element in ARGS is not of the
 supported types (a symbol, string, number or symbolic SQL
 expression) or a list or vector containing only these supported
 types."
-  (format nil "~{~A~^ ~}" (mapcar #'sql-output args)))
+  (output-sql-parts args nil :delimiter " "))
 
 (defun sql-expression (&key string table alias attribute type)
   "Returns an SQL expression constructed from the supplied

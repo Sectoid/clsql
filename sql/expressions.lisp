@@ -136,7 +136,6 @@
   (write-string (database-output-sql expr database) *sql-stream*)
   (values))
 
-
 (defvar *output-hash*
   #+sbcl
   (make-hash-table :test #'equal :synchronized T :weakness :key-and-value)
@@ -773,8 +772,8 @@ uninclusive, and the args from that keyword to the end."
   (with-slots (objects)
       query
     (when objects
-      (format *sql-stream* "(~{~A~^ ~})" objects))))
-
+      (concats-strings
+       objects :delimiter " " :stream *sql-stream* :wrap T))))
 
 ;; INSERT
 
@@ -1025,17 +1024,30 @@ uninclusive, and the args from that keyword to the end."
   (declare (ignore database))
   (number-to-sql-string num))
 
+(defun output-sql-parts (args database
+                         &key (delimiter ",")
+                         wrap
+                         (return t))
+  (let ((*sql-stream* (if (and *sql-stream* (null return))
+                          *sql-stream*
+                          (make-string-output-stream))))
+    (concats-strings
+     args
+     :printer (lambda (val s) (declare (ignore s))
+                (output-sql val database))
+     :delimiter delimiter
+     :stream *sql-stream*
+     :wrap wrap)
+    (when return
+      (get-output-stream-string *sql-stream*))))
+
 (defmethod database-output-sql ((arg list) database)
   (if (null arg)
       +null-string+
-      (format nil "(~{~A~^,~})" (mapcar #'(lambda (val)
-                                            (sql-output val database))
-                                        arg))))
+      (output-sql-parts arg database :wrap T)))
 
 (defmethod database-output-sql ((arg vector) database)
-  (format nil "~{~A~^,~}" (map 'list #'(lambda (val)
-                                         (sql-output val database))
-                               arg)))
+  (output-sql-parts arg database))
 
 (defmethod output-sql-hash-key ((arg vector) database)
   (list 'vector (map 'list (lambda (arg)

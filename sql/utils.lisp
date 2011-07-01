@@ -392,27 +392,43 @@ is replaced with replacement. [FROM http://cl-cookbook.sourceforge.net/strings.h
     (unless stream
       (get-output-stream-string out))))
 
-(defun concats-strings (strings &optional delimiter pretty (ignore-empty-strings-and-nil t))
-  (let ((s (make-string-output-stream))
+(defun concats-strings (strings &key delimiter pretty (ignore-empty-strings-and-nil nil)
+                                stream printer wrap)
+  (let ((s (or stream (make-string-output-stream)))
         (*print-pretty* pretty)
         (printed? nil))
     (setf delimiter
           (typecase delimiter
             ((or null string) delimiter)
             (t  (princ-to-string delimiter))))
-    (flet ((p (item)
+    (flet ((wrap-it (&optional end?)
+             (typecase wrap
+               (null nil)
+               (character (write-char wrap s ))
+               (string (write-sequence wrap s))
+               (t (write-char (if end? #\) #\( ) s ))))
+           (p (item)
              (when (or (null ignore-empty-strings-and-nil)
                        item)
                (when (and printed? delimiter)
                  (write-sequence delimiter s))
-               (typecase item
-                 (string (when (or (null ignore-empty-strings-and-nil)
-                                   (plusp (length item)))
-                           (write-sequence item s)))
-                 (T (princ item s)))
+               (if printer
+                   (funcall printer item s)
+                   (typecase item
+                     (string (when (or (null ignore-empty-strings-and-nil)
+                                       (plusp (length item)))
+                               (write-sequence item s)))
+                     (T (princ item s))))
                (setf printed? t))))
-      (mapc #'p strings)
-      (get-output-stream-string s))))
+      (wrap-it)
+      (map 'nil #'p strings)
+      (wrap-it T)
+
+      (unless stream
+        (get-output-stream-string s)))))
 
 (defun concats (&rest strings)
-  (concats-strings strings))
+  (concats-strings strings :ignore-empty-strings-and-nil T))
+
+(defun concats-to (stream &rest strings)
+  (concats-strings strings :ignore-empty-strings-and-nil T :stream stream))
