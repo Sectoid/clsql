@@ -116,6 +116,10 @@
   (make-instance 'sql-relational-exp
                  :operator '/ :sub-expressions rest))
 
+(defsql sql-% (:symbol "%") (&rest rest)
+  (make-instance 'sql-relational-exp
+                 :operator '% :sub-expressions rest))
+
 (defsql sql-- (:symbol "-") (&rest rest)
         (if (cdr rest)
             (make-instance 'sql-relational-exp
